@@ -3,7 +3,7 @@ import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 plugins {
     kotlin("jvm") version "2.2.0"
     kotlin("plugin.serialization") version "2.2.0"
-    id("org.jetbrains.intellij.platform") version "2.5.0"
+    id("org.jetbrains.intellij.platform") version "2.7.0"
 }
 
 group = providers.gradleProperty("pluginGroup").get()
@@ -19,7 +19,7 @@ repositories {
 
 dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+    compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
@@ -38,6 +38,7 @@ dependencies {
 
 intellijPlatform {
     instrumentCode = false
+    buildSearchableOptions = false
     pluginConfiguration {
         name = providers.gradleProperty("pluginName")
         ideaVersion {
@@ -50,3 +51,8 @@ intellijPlatform {
 kotlin { jvmToolchain(21) }
 
 tasks.test { useJUnitPlatform() }
+
+tasks.named<JavaExec>("runIde") {
+    val idePath = providers.gradleProperty("localIdePath").get()
+    jvmArgs("-Xbootclasspath/a:$idePath/lib/nio-fs.jar")
+}

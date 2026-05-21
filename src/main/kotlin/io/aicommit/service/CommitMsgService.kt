@@ -1,5 +1,6 @@
 package io.aicommit.service
 
+import com.intellij.ide.ActivityTracker
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.components.Service
@@ -40,6 +41,7 @@ class CommitMsgService(private val project: Project) {
         }
 
         current = scope.launch {
+            ActivityTracker.getInstance().inc()
             try {
                 val payload = project.service<DiffCollector>().collect(changes)
                 val msgs = PromptBuilder.build(payload, settings.state, userTemplate = null)
@@ -52,14 +54,31 @@ class CommitMsgService(private val project: Project) {
                 }
 
                 withContext(Dispatchers.EDT) {
-                    if (settings.state.clearMessageBeforeGenerate) replaceMessage(messageUi, "")
+                    replaceMessage(messageUi, "✨ AI 正在生成 commit message…")
                 }
 
+                var firstChunk = true
                 client.stream(msgs).collect { chunk ->
-                    withContext(Dispatchers.EDT) { appendMessage(messageUi, chunk) }
+                    withContext(Dispatchers.EDT) {
+                        if (firstChunk) {
+                            replaceMessage(messageUi, chunk)
+                            firstChunk = false
+                        } else {
+                            appendMessage(messageUi, chunk)
+                        }
+                    }
+                }
+                if (firstChunk) {
+                    withContext(Dispatchers.EDT) {
+                        replaceMessage(messageUi, "")
+                        Notifications.warn(project, "模型没有返回任何内容，请检查 provider/model 配置。")
+                    }
                 }
             } catch (_: CancellationException) {
-                // user-initiated, silent
+                // user-initiated; if we only showed the placeholder, clear it
+                withContext(Dispatchers.EDT + kotlinx.coroutines.NonCancellable) {
+                    if (messageUi.comment.startsWith("✨ AI 正在生成")) replaceMessage(messageUi, "")
+                }
             } catch (e: LLMException.Auth) {
                 Notifications.error(project, "Auth failed: check API key.")
             } catch (e: LLMException.RateLimited) {
@@ -72,6 +91,8 @@ class CommitMsgService(private val project: Project) {
                 Notifications.error(project, "Model error: ${e.message?.take(200)}")
             } catch (e: Throwable) {
                 Notifications.error(project, "Unexpected: ${e.message}")
+            } finally {
+                ActivityTracker.getInstance().inc()
             }
         }
     }

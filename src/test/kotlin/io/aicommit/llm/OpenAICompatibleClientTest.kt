@@ -18,7 +18,7 @@ class OpenAICompatibleClientTest {
     @AfterEach fun tearDown() { server.shutdown() }
 
     private fun provider() = Provider(
-        id = "t", name = "t",
+        id = "t", presetId = "custom", name = "t",
         baseUrl = server.url("/v1").toString(),
         model = "m",
     )

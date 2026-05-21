@@ -23,3 +23,9 @@ data class StreamChoice(val delta: StreamDelta = StreamDelta(), val index: Int =
 
 @Serializable
 data class StreamChunk(val choices: List<StreamChoice> = emptyList())
+
+@Serializable
+data class ModelInfo(val id: String)
+
+@Serializable
+data class ModelListResponse(val data: List<ModelInfo> = emptyList())
