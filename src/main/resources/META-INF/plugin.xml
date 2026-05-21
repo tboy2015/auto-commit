@@ -1,0 +1,30 @@
+<idea-plugin>
+    <id>io.aicommit</id>
+    <name>AI Commit</name>
+    <vendor>aicommit</vendor>
+    <description><![CDATA[Generate git commit messages with AI directly inside IDEA's Commit dialog.]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>Git4Idea</depends>
+
+    <resource-bundle>messages.AICommitBundle</resource-bundle>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="AI Commit" displayType="BALLOON"/>
+        <applicationService serviceImplementation="io.aicommit.settings.AppSettings"/>
+        <projectService serviceImplementation="io.aicommit.diff.DiffCollector"/>
+        <projectService serviceImplementation="io.aicommit.service.CommitMsgService"/>
+        <applicationConfigurable parentId="tools"
+                                 instance="io.aicommit.settings.SettingsConfigurable"
+                                 id="io.aicommit.settings"
+                                 displayName="AI Commit"/>
+    </extensions>
+
+    <actions>
+        <action id="AICommit.Generate"
+                class="io.aicommit.action.GenerateAction"
+                icon="AllIcons.Actions.Lightning">
+            <add-to-group group-id="Vcs.MessageActionGroup" anchor="first"/>
+        </action>
+    </actions>
+</idea-plugin>
