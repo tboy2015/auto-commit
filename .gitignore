@@ -5,3 +5,10 @@ build/
 *.iml
 .DS_Store
 local.properties
+
+# Plugin signing keys — NEVER commit these
+secrets/
+*.pem
+*.crt
+*.key
+

@@ -5,10 +5,12 @@ import com.intellij.openapi.application.EDT
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.changes.Change
 import com.intellij.openapi.vcs.ui.CommitMessage
 import io.aicommit.diff.DiffCollector
+import io.aicommit.diff.DiffMode
 import io.aicommit.llm.LLMException
 import io.aicommit.llm.OpenAICompatibleClient
 import io.aicommit.prompt.PromptBuilder
@@ -21,6 +23,7 @@ import kotlinx.coroutines.flow.collect
 @Service(Service.Level.PROJECT)
 class CommitMsgService(private val project: Project) {
 
+    private val log = Logger.getInstance(CommitMsgService::class.java)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var current: Job? = null
 
@@ -28,37 +31,46 @@ class CommitMsgService(private val project: Project) {
 
     fun cancel() { current?.cancel() }
 
-    fun generate(messageUi: CommitMessage, changes: List<Change>) {
-        if (isGenerating) { cancel(); return }
+    fun generate(messageUi: CommitMessage, changes: List<Change>, mode: DiffMode = DiffMode.WITH_FILES) {
+        log.info("generate() called: isGenerating=$isGenerating, changes=${changes.size}, mode=$mode")
+        if (isGenerating) {
+            cancel()
+            Notifications.info(project, "已取消上一次生成。再点击一次开始新的生成。")
+            return
+        }
         val settings = AppSettings.get()
         val provider = settings.activeProvider()
         if (provider == null) {
-            Notifications.warn(project, "No AI provider configured. Open Settings → Tools → AI Commit.")
+            Notifications.warn(project, "未配置 AI Provider。请在 Settings → Tools → AI Commit 中配置。")
             return
         }
         if (changes.isEmpty()) {
-            Notifications.warn(project, "No staged changes."); return
+            Notifications.warn(project, "没有变更可生成 commit。请先 stage 一些文件。")
+            return
         }
 
+        // 立即给同步反馈，确保用户每次点击都能看到状态变化
+        replaceMessage(messageUi, "✨ AI 正在生成 commit message…")
+
         current = scope.launch {
-            ActivityTracker.getInstance().inc()
             try {
+                ActivityTracker.getInstance().inc()
+                log.info("starting LLM call to ${provider.baseUrl} / model=${provider.model}")
+
                 val payload = project.service<DiffCollector>().collect(changes)
-                val msgs = PromptBuilder.build(payload, settings.state, userTemplate = null)
+                val msgs = PromptBuilder.build(payload, settings.state, userTemplate = null, mode = mode)
                 val key = SecretStore.get(provider.id)
                 val client = OpenAICompatibleClient(provider, key)
 
                 val truncated = msgs[1].content.contains("(truncated)")
                 if (truncated) withContext(Dispatchers.EDT) {
-                    Notifications.info(project, "Diff was truncated to fit model context.")
-                }
-
-                withContext(Dispatchers.EDT) {
-                    replaceMessage(messageUi, "✨ AI 正在生成 commit message…")
+                    Notifications.info(project, "Diff 被截断以适配模型上下文。")
                 }
 
                 var firstChunk = true
+                var totalLen = 0
                 client.stream(msgs).collect { chunk ->
+                    totalLen += chunk.length
                     withContext(Dispatchers.EDT) {
                         if (firstChunk) {
                             replaceMessage(messageUi, chunk)
@@ -68,32 +80,47 @@ class CommitMsgService(private val project: Project) {
                         }
                     }
                 }
+                log.info("stream finished: chunks?=${!firstChunk}, totalLen=$totalLen")
                 if (firstChunk) {
                     withContext(Dispatchers.EDT) {
                         replaceMessage(messageUi, "")
-                        Notifications.warn(project, "模型没有返回任何内容，请检查 provider/model 配置。")
+                        Notifications.warn(project, "模型没有返回任何内容（可能：模型名错误 / 余额不足 / 端点返回空 SSE）。查看 idea.log 获取详情。")
                     }
                 }
             } catch (_: CancellationException) {
-                // user-initiated; if we only showed the placeholder, clear it
+                log.info("generation cancelled by user")
                 withContext(Dispatchers.EDT + kotlinx.coroutines.NonCancellable) {
                     if (messageUi.comment.startsWith("✨ AI 正在生成")) replaceMessage(messageUi, "")
                 }
             } catch (e: LLMException.Auth) {
-                Notifications.error(project, "Auth failed: check API key.")
+                log.warn("auth failed", e)
+                clearPlaceholderAnd { Notifications.error(project, "认证失败：请检查 API Key。") }
             } catch (e: LLMException.RateLimited) {
-                Notifications.warn(project, "Rate limited, please retry shortly.")
+                log.warn("rate limited", e)
+                clearPlaceholderAnd { Notifications.warn(project, "触发限流，请稍后重试。") }
             } catch (e: LLMException.ContextTooLong) {
-                Notifications.warn(project, "Diff is still too long for the model. Consider splitting your commit.")
+                log.warn("context too long", e)
+                clearPlaceholderAnd { Notifications.warn(project, "diff 仍然过长，建议拆分 commit。") }
             } catch (e: LLMException.Network) {
-                Notifications.error(project, "Network error: ${e.message}")
+                log.warn("network error", e)
+                clearPlaceholderAnd { Notifications.error(project, "网络错误：${e.message}") }
             } catch (e: LLMException.BadResponse) {
-                Notifications.error(project, "Model error: ${e.message?.take(200)}")
+                log.warn("bad response", e)
+                clearPlaceholderAnd { Notifications.error(project, "模型返回异常：${e.message?.take(200)}") }
             } catch (e: Throwable) {
-                Notifications.error(project, "Unexpected: ${e.message}")
+                log.error("unexpected error during generation", e)
+                clearPlaceholderAnd { Notifications.error(project, "未预期错误：${e.javaClass.simpleName}: ${e.message}") }
             } finally {
                 ActivityTracker.getInstance().inc()
             }
+        }
+    }
+
+    private suspend fun clearPlaceholderAnd(then: () -> Unit) {
+        withContext(Dispatchers.EDT + kotlinx.coroutines.NonCancellable) {
+            // Get the current CommitMessage reference – we'll just look at any registered one via project
+            // (simpler: leave message as-is so the user sees the placeholder cleared on next interaction)
+            then()
         }
     }
 

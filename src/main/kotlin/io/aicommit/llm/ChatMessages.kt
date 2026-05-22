@@ -16,7 +16,10 @@ data class ChatRequest(
 )
 
 @Serializable
-data class StreamDelta(val content: String? = null)
+data class StreamDelta(
+    val content: String? = null,
+    @SerialName("reasoning_content") val reasoningContent: String? = null,
+)
 
 @Serializable
 data class StreamChoice(val delta: StreamDelta = StreamDelta(), val index: Int = 0)

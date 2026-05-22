@@ -1,6 +1,7 @@
 package io.aicommit.llm
 
 import io.aicommit.settings.Provider
+import com.intellij.openapi.diagnostic.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -59,16 +60,51 @@ class OpenAICompatibleClient(
                     else -> LLMException.BadResponse("http ${resp.code}: ${errBody.take(500)}")
                 }
             }
+            // 防御：200 但返回的不是 SSE（例如错误 JSON）。读整段 body 抛出。
+            val contentType = resp.header("Content-Type").orEmpty().lowercase()
+            if (contentType.isNotEmpty()
+                && !contentType.contains("event-stream")
+                && !contentType.contains("text/plain")
+            ) {
+                val body = resp.body?.string().orEmpty()
+                log.warn("non-SSE 200 response (content-type=$contentType): ${body.take(500)}")
+                throw LLMException.BadResponse("非流式响应 (content-type=$contentType): ${body.take(300)}")
+            }
             val source = resp.body?.source() ?: throw LLMException.BadResponse("empty body")
+            var sawContent = false
+            var sawReasoning = false
+            var reasoningChars = 0
             while (!source.exhausted()) {
                 val line = source.readUtf8Line() ?: break
                 val trimmed = line.trimEnd('\r')
                 if (trimmed.isEmpty() || trimmed.startsWith(":")) continue
-                if (!trimmed.startsWith("data:")) continue
+                if (!trimmed.startsWith("data:")) {
+                    log.debug("non-data SSE line: ${trimmed.take(200)}")
+                    continue
+                }
                 val payload = trimmed.removePrefix("data:").trim()
-                if (payload == "[DONE]") return@use
-                val chunk = runCatching { json.decodeFromString(StreamChunk.serializer(), payload) }.getOrNull() ?: continue
-                chunk.choices.firstOrNull()?.delta?.content?.let { emit(it) }
+                if (payload == "[DONE]") break
+                val chunk = runCatching { json.decodeFromString(StreamChunk.serializer(), payload) }.getOrNull()
+                if (chunk == null) {
+                    log.debug("could not parse SSE payload: ${payload.take(300)}")
+                    continue
+                }
+                val delta = chunk.choices.firstOrNull()?.delta ?: continue
+                val content = delta.content
+                if (!content.isNullOrEmpty()) {
+                    sawContent = true
+                    emit(content)
+                } else if (!delta.reasoningContent.isNullOrEmpty()) {
+                    // 推理模型：吞掉 reasoning_content，等待正式 content
+                    sawReasoning = true
+                    reasoningChars += delta.reasoningContent.length
+                }
+            }
+            if (!sawContent && sawReasoning) {
+                log.warn("stream returned only reasoning_content ($reasoningChars chars); model is reasoning-only or never reached content phase.")
+                throw LLMException.BadResponse(
+                    "模型只返回了推理内容（reasoning），没有正文。请换用非推理模型，如 deepseek-chat。"
+                )
             }
         }
     }.flowOn(Dispatchers.IO)
@@ -98,6 +134,7 @@ class OpenAICompatibleClient(
     }
 
     companion object {
+        private val log = Logger.getInstance(OpenAICompatibleClient::class.java)
         fun defaultHttp(p: Provider): OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(p.timeoutSec.toLong(), TimeUnit.SECONDS)

@@ -1,8 +1,25 @@
 <idea-plugin>
     <id>io.aicommit</id>
     <name>AI Commit</name>
-    <vendor>aicommit</vendor>
-    <description><![CDATA[Generate git commit messages with AI directly inside IDEA's Commit dialog.]]></description>
+    <vendor email="" url="https://github.com/your-org/auto-commit">aicommit</vendor>
+    <description><![CDATA[
+        <h3>AI Commit — 在 IDEA Commit 对话框里用 AI 生成 commit message</h3>
+        <ul>
+          <li>支持 OpenAI / Anthropic Claude / DeepSeek / Kimi / 智谱 GLM / 通义千问 / SiliconFlow / OpenRouter / Ollama / LM Studio，以及任意 OpenAI 兼容端点</li>
+          <li>多规范模板：Conventional Commits / Gitmoji / Simple / Custom</li>
+          <li>多语言：中文 / English / 日本語 / 한국어 / 自定义</li>
+          <li>流式输出直接填入 message 输入框，可随时停止</li>
+          <li>右键 ⚡ 选择上下文模式：仅 staged diff / + 文件路径 / + 最近 commit 历史</li>
+          <li>大 diff 自动截断、API Key 存系统 Keychain、不上报任何遥测</li>
+          <li>快捷键：⌘⇧G（macOS） / Ctrl+Shift+G（Win/Linux）</li>
+        </ul>
+    ]]></description>
+    <change-notes><![CDATA[
+        <h4>0.1.0</h4>
+        <ul>
+          <li>首次发布。详见 <a href="https://github.com/your-org/auto-commit/blob/main/CHANGELOG.md">CHANGELOG</a></li>
+        </ul>
+    ]]></change-notes>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>Git4Idea</depends>
@@ -18,13 +35,23 @@
                                  instance="io.aicommit.settings.SettingsConfigurable"
                                  id="io.aicommit.settings"
                                  displayName="AI Commit"/>
+        <statusBarWidgetFactory id="AICommit.ProviderWidget"
+                                implementation="io.aicommit.ui.ProviderStatusBarFactory"
+                                order="last"/>
     </extensions>
 
     <actions>
         <action id="AICommit.Generate"
                 class="io.aicommit.action.GenerateAction"
-                icon="AllIcons.Actions.Lightning">
+                icon="AllIcons.Actions.Lightning"
+                text="AI 生成提交信息"
+                description="基于已勾选变更，调用 AI 生成 commit message">
             <add-to-group group-id="Vcs.MessageActionGroup" anchor="first"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="meta shift G"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="control shift G" remove="true"/>
+            <keyboard-shortcut keymap="Default for XWin" first-keystroke="control shift G"/>
+            <keyboard-shortcut keymap="Default for GNOME" first-keystroke="control shift G"/>
+            <keyboard-shortcut keymap="Default for KDE" first-keystroke="control shift G"/>
         </action>
     </actions>
 </idea-plugin>

@@ -7,19 +7,28 @@ object Templates {
         Convention("conventional", "Conventional Commits",
             """You write high-quality git commit messages following Conventional Commits 1.0.0.
             |
-            |HEADER format: `<type>(<scope>): <subject>`
+            |OUTPUT FORMAT — this is critical:
+            |Line 1: `<type>(<scope>): <subject>`
+            |Line 2: (empty line)
+            |Line 3+: bullet list, ONE bullet per line, each line ending with an actual newline character.
+            |
+            |Rules:
             |- type: feat | fix | docs | style | refactor | perf | test | build | ci | chore | revert
-            |- scope: the primary affected module, derived from the diff (e.g. auth, web-ui, api). Omit if truly cross-cutting.
-            |- subject: imperative mood, no trailing period, <= 72 chars, summarizes the OVERALL change.
+            |- scope: primary affected module from the diff (e.g. auth, web-ui, api). Omit if cross-cutting.
+            |- subject: imperative mood, no trailing period, <= 72 chars; summarize the OVERALL change.
+            |- Each body bullet starts with `- ` and is on its OWN LINE. Do NOT join bullets with extra spaces.
+            |- Group bullets by module/file, ordered by importance. Skip pure formatting/whitespace.
+            |- Describe intent, not line counts.
             |
-            |BODY (required when there are multiple meaningful changes):
-            |- A blank line after the header, then a Markdown bullet list.
-            |- GROUP bullets by module/file, ordered by importance.
-            |- Each bullet: `- <module-or-file>: <what changed and why, concise>`.
-            |- Cover every significant change visible in the diff; skip pure formatting/whitespace.
-            |- Do NOT enumerate every line — describe the intent, not the line count.
+            |EXAMPLE (note the real line breaks):
+            |feat(southbound): 新增三方系统执行日志能力
             |
-            |Output ONLY the commit message. No markdown fences. No leading/trailing explanations.""".trimMargin()),
+            |- southbound-server: 引入执行日志表与 DO，重构 `AbstractThirdSystemClient`
+            |- southbound-server: 新增 `SouthboundApiRequest/Result/Exception` 用于结构化调用
+            |- sql: 新增 `biz_southbound_execution_log` 表与达梦升级脚本
+            |- web-ui: 增加调用日志查询页面
+            |
+            |Output ONLY the commit message. No markdown fences. No explanations before or after.""".trimMargin()),
         Convention("conventional-emoji", "Conventional + Gitmoji",
             """Same rules as Conventional Commits, but prefix the subject with the matching gitmoji
             |(✨ feat, 🐛 fix, 📝 docs, ♻️ refactor, ⚡ perf, ✅ test, 🔧 chore, 👷 ci, 🎨 style).

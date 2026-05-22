@@ -2,6 +2,7 @@ package io.aicommit.settings
 
 import com.intellij.openapi.components.*
 import com.intellij.util.xmlb.XmlSerializerUtil
+import io.aicommit.diff.DiffMode
 import java.util.UUID
 
 @State(name = "AICommitSettings", storages = [Storage("aicommit.xml")])
@@ -20,6 +21,7 @@ class AppSettings : PersistentStateComponent<AppSettings.State> {
         var redactSecrets: Boolean = true,
         var customSystemPrompt: String? = null,
         var customUserTemplate: String? = null,
+        var diffMode: DiffMode = DiffMode.WITH_FILES,
     )
 
     private var state = State()

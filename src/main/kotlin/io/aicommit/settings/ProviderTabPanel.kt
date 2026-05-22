@@ -28,7 +28,6 @@ import javax.swing.RowFilter
 class ProviderTabPanel(
     private var provider: Provider,
     private val onActiveToggle: (Provider) -> Unit,   // called when this tab is set active
-    private val onRemove: (() -> Unit)? = null,        // present for custom tabs only
 ) {
     private val activeCheck = JBCheckBox("设为当前服务")
     private val baseUrl = JBTextField(provider.baseUrl)
@@ -86,6 +85,7 @@ class ProviderTabPanel(
     }
 
     val isActive: Boolean get() = activeCheck.isSelected
+    val isCustom: Boolean get() = provider.isCustom
 
     val component: JComponent = panel {
         row { cell(activeCheck) }
@@ -114,13 +114,6 @@ class ProviderTabPanel(
             row("Max tokens:") { cell(maxTokens) }
             row("Timeout (sec):") { cell(timeout) }
         }
-        onRemove?.let { remove ->
-            row {
-                val btn = JButton("删除此 Tab")
-                btn.addActionListener { remove() }
-                cell(btn)
-            }
-        }
     }
 
     /** Build a Provider from current UI state (does NOT persist the API key). */
@@ -128,7 +121,7 @@ class ProviderTabPanel(
         baseUrl = baseUrl.text.trim(),
         model = (modelCombo.selectedItem as? String).orEmpty().trim(),
         enabledModels = modelsTableModel.enabledModels(),
-        temperature = temperature.text.toDoubleOrNull() ?: 0.3,
+        temperature = temperature.text.toDoubleOrNull() ?: 0.8,
         maxTokens = maxTokens.text.toIntOrNull() ?: 512,
         timeoutSec = timeout.text.toIntOrNull() ?: 60,
     )

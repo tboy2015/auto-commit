@@ -10,7 +10,7 @@ data class Provider(
     val baseUrl: String,
     val model: String,               // currently selected ("active") model
     val enabledModels: List<String> = emptyList(),
-    val temperature: Double = 0.3,
+    val temperature: Double = 0.8,
     val maxTokens: Int = 512,
     val timeoutSec: Int = 60,
     val extraHeaders: Map<String, String> = emptyMap(),
