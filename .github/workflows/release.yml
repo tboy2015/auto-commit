@@ -34,7 +34,7 @@ jobs:
       # NOTE: verifyPlugin 需要下载对应版本的 IC，2026.1.x IC 暂未发布。
       # 暂时跳过；Marketplace 上架时会做兼容性扫描。
       # - name: Plugin verifier
-      #   run: ./gradlew -PlocalIdePath= -PplatformVersion=2024.3.5 -PplatformType=IC verifyPlugin
+      #   run: ./gradlew -PlocalIdePath= -PplatformVersion=2024.3.5 -PplatformType=IU verifyPlugin
 
       - name: Sign & publish
         env:
@@ -42,7 +42,7 @@ jobs:
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
           PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
           PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
-        run: ./gradlew -PlocalIdePath= -PplatformVersion=2026.1.2 -PplatformType=IC publishPlugin
+        run: ./gradlew -PlocalIdePath= -PplatformVersion=2026.1.2 -PplatformType=IU publishPlugin
 
       - name: Upload signed distribution
         uses: actions/upload-artifact@v4

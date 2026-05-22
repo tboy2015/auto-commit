@@ -32,11 +32,11 @@ jobs:
           ./gradlew \
             -PlocalIdePath= \
             -PplatformVersion=2026.1.2 \
-            -PplatformType=IC \
+            -PplatformType=IU \
             test buildPlugin
 
       # - name: Plugin verifier
-      #   run: ./gradlew -PlocalIdePath= -PplatformVersion=2024.3.5 -PplatformType=IC verifyPlugin
+      #   run: ./gradlew -PlocalIdePath= -PplatformVersion=2024.3.5 -PplatformType=IU verifyPlugin
 
       - name: Upload distributions
         uses: actions/upload-artifact@v4
