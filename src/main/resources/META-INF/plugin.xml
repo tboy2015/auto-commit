@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>io.aicommit</id>
     <name>AI Commit</name>
-    <vendor email="" url="https://github.com/your-org/auto-commit">aicommit</vendor>
+    <vendor email="" url="https://github.com/tboy2015/auto-commit">aicommit</vendor>
     <description><![CDATA[
         <h3>AI Commit — 在 IDEA Commit 对话框里用 AI 生成 commit message</h3>
         <ul>
@@ -17,7 +17,7 @@
     <change-notes><![CDATA[
         <h4>0.1.0</h4>
         <ul>
-          <li>首次发布。详见 <a href="https://github.com/your-org/auto-commit/blob/main/CHANGELOG.md">CHANGELOG</a></li>
+          <li>首次发布。详见 <a href="https://github.com/tboy2015/auto-commit/blob/main/CHANGELOG.md">CHANGELOG</a></li>
         </ul>
     ]]></change-notes>
 
