@@ -36,11 +36,18 @@ jobs:
       # - name: Plugin verifier
       #   run: ./gradlew -PlocalIdePath= -PplatformVersion=2024.3.5 -PplatformType=IU verifyPlugin
 
-      - name: Sign & publish
+      - name: Sign plugin
         env:
           CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
           PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
+        run: ./gradlew -PlocalIdePath= -PplatformVersion=2026.1.2 -PplatformType=IU signPlugin
+
+      - name: Publish to JetBrains Marketplace
+        # 首次发布需要手工上传到 https://plugins.jetbrains.com/plugin/add
+        # 此步骤会在 plugin id 尚未注册时失败 —— 允许失败不影响 GitHub Release
+        continue-on-error: true
+        env:
           PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
         run: ./gradlew -PlocalIdePath= -PplatformVersion=2026.1.2 -PplatformType=IU publishPlugin
 
