@@ -41,7 +41,7 @@ class CommitMsgService(private val project: Project) {
         val settings = AppSettings.get()
         val provider = settings.activeProvider()
         if (provider == null) {
-            Notifications.warn(project, "未配置 AI Provider。请在 Settings → Tools → AI Commit 中配置。")
+            Notifications.warn(project, "未配置 AI Provider。请在 Settings → Tools → Auto Commit 中配置。")
             return
         }
         if (changes.isEmpty()) {
@@ -50,7 +50,7 @@ class CommitMsgService(private val project: Project) {
         }
 
         // 立即给同步反馈，确保用户每次点击都能看到状态变化
-        replaceMessage(messageUi, "✨ AI 正在生成 commit message…")
+        replaceMessage(messageUi, "✨ 正在生成 commit message…")
 
         current = scope.launch {
             try {
@@ -90,7 +90,7 @@ class CommitMsgService(private val project: Project) {
             } catch (_: CancellationException) {
                 log.info("generation cancelled by user")
                 withContext(Dispatchers.EDT + kotlinx.coroutines.NonCancellable) {
-                    if (messageUi.comment.startsWith("✨ AI 正在生成")) replaceMessage(messageUi, "")
+                    if (messageUi.comment.startsWith("✨ 正在生成")) replaceMessage(messageUi, "")
                 }
             } catch (e: LLMException.Auth) {
                 log.warn("auth failed", e)
@@ -127,12 +127,12 @@ class CommitMsgService(private val project: Project) {
     private fun appendMessage(ui: CommitMessage, chunk: String) {
         CommandProcessor.getInstance().executeCommand(project, {
             ui.setCommitMessage(ui.comment + chunk)
-        }, "AI Commit Append", "ai-commit")
+        }, "Auto Commit Append", "ai-commit")
     }
 
     private fun replaceMessage(ui: CommitMessage, text: String) {
         CommandProcessor.getInstance().executeCommand(project, {
             ui.setCommitMessage(text)
-        }, "AI Commit Reset", "ai-commit")
+        }, "Auto Commit Reset", "ai-commit")
     }
 }

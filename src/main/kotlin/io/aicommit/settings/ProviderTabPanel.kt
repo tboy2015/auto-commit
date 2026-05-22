@@ -135,7 +135,7 @@ class ProviderTabPanel(
 
     private fun verify() {
         val snap = snapshot()
-        if (snap.baseUrl.isBlank()) { Messages.showWarningDialog("Base URL 为空", "AI Commit"); return }
+        if (snap.baseUrl.isBlank()) { Messages.showWarningDialog("Base URL 为空", "Auto Commit"); return }
         verifyBtn.isEnabled = false; verifyBtn.text = "验证中…"
         val key = String(apiKey.password).takeIf { it.isNotBlank() }
         runBackground("验证 ${snap.baseUrl}") {
@@ -143,13 +143,13 @@ class ProviderTabPanel(
                 .onSuccess { models ->
                     ApplicationManager.getApplication().invokeLater({
                         verifyBtn.isEnabled = true; verifyBtn.text = "验证"
-                        Messages.showInfoMessage("连接成功，发现 ${models.size} 个模型。", "AI Commit")
+                        Messages.showInfoMessage("连接成功，发现 ${models.size} 个模型。", "Auto Commit")
                     }, ModalityState.any())
                 }
                 .onFailure { e ->
                     ApplicationManager.getApplication().invokeLater({
                         verifyBtn.isEnabled = true; verifyBtn.text = "验证"
-                        Messages.showErrorDialog("验证失败：\n${e.message?.take(500)}", "AI Commit")
+                        Messages.showErrorDialog("验证失败：\n${e.message?.take(500)}", "Auto Commit")
                     }, ModalityState.any())
                 }
         }
@@ -157,7 +157,7 @@ class ProviderTabPanel(
 
     private fun fetchModels() {
         val snap = snapshot()
-        if (snap.baseUrl.isBlank()) { Messages.showWarningDialog("Base URL 为空", "AI Commit"); return }
+        if (snap.baseUrl.isBlank()) { Messages.showWarningDialog("Base URL 为空", "Auto Commit"); return }
         refreshBtn.isEnabled = false; refreshBtn.text = "刷新中…"
         val key = String(apiKey.password).takeIf { it.isNotBlank() }
         runBackground("拉取模型列表") {
@@ -171,7 +171,7 @@ class ProviderTabPanel(
                 .onFailure { e ->
                     ApplicationManager.getApplication().invokeLater({
                         refreshBtn.isEnabled = true; refreshBtn.text = "刷新模型"
-                        Messages.showErrorDialog("拉取失败：\n${e.message?.take(500)}", "AI Commit")
+                        Messages.showErrorDialog("拉取失败：\n${e.message?.take(500)}", "Auto Commit")
                     }, ModalityState.any())
                 }
         }

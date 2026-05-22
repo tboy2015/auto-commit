@@ -65,7 +65,7 @@ class GenerateAction : AnAction(), CustomComponentAction {
         e.presentation.text = when {
             generating -> "停止生成"
             !hasProvider -> "配置 AI Provider"
-            else -> "AI 生成提交信息"
+            else -> "Auto Commit (AI) 生成"
         }
         e.presentation.description = when {
             !hasProvider -> "点击打开设置页配置 Provider；右键选择生成模式"
@@ -79,7 +79,7 @@ class GenerateAction : AnAction(), CustomComponentAction {
         val project = e.project ?: return
         val hasProvider = AppSettings.get().activeProvider() != null
 
-        // 灰色状态（无 provider）下左键点击 → 直接打开 AI Commit 设置页
+        // 灰色状态（无 provider）下左键点击 → 直接打开 Auto Commit 设置页
         if (!hasProvider) {
             ShowSettingsUtil.getInstance()
                 .showSettingsDialog(project, SettingsConfigurable::class.java)

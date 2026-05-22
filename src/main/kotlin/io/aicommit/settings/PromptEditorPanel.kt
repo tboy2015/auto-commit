@@ -132,7 +132,7 @@ class PromptEditorPanel(private val settings: AppSettings) {
                 append("\n\n=== user (mode=$mode) ===\n").append(msgs[1].content)
             }
         } catch (e: Throwable) {
-            Messages.showErrorDialog("预览失败：${e.message}", "AI Commit")
+            Messages.showErrorDialog("预览失败：${e.message}", "Auto Commit")
         }
     }
 }

@@ -94,7 +94,7 @@ class ProviderEditor(private var provider: Provider) {
     private fun fetchModels() {
         val snap = snapshotProvider()
         if (snap.baseUrl.isBlank()) {
-            Messages.showWarningDialog("Base URL is empty.", "AI Commit")
+            Messages.showWarningDialog("Base URL is empty.", "Auto Commit")
             return
         }
         val key = String(apiKey.password).takeIf { it.isNotBlank() } ?: SecretStore.get(provider.id)
@@ -116,7 +116,7 @@ class ProviderEditor(private var provider: Provider) {
                         fetchModelsBtn.isEnabled = true
                         fetchModelsBtn.text = "Fetch"
                         if (models.isEmpty()) Messages.showInfoMessage(
-                            "Endpoint returned no models.", "AI Commit"
+                            "Endpoint returned no models.", "Auto Commit"
                         )
                     }, ModalityState.any())
                 }
@@ -125,7 +125,7 @@ class ProviderEditor(private var provider: Provider) {
                         fetchModelsBtn.isEnabled = true
                         fetchModelsBtn.text = "Fetch"
                         Messages.showErrorDialog(
-                            "Failed to fetch models:\n${e.message?.take(500)}", "AI Commit"
+                            "Failed to fetch models:\n${e.message?.take(500)}", "Auto Commit"
                         )
                     }, ModalityState.any())
                 }

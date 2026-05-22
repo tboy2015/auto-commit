@@ -20,7 +20,7 @@ import javax.swing.Icon
 
 class ProviderStatusBarFactory : StatusBarWidgetFactory {
     override fun getId(): String = "AICommit.ProviderWidget"
-    override fun getDisplayName(): String = "AI Commit Provider"
+    override fun getDisplayName(): String = "Auto Commit Provider"
     override fun isAvailable(project: Project): Boolean = true
     override fun createWidget(project: Project): StatusBarWidget = ProviderStatusBarWidget(project)
     override fun disposeWidget(widget: StatusBarWidget) {}
@@ -71,7 +71,7 @@ class ProviderStatusBarWidget(private val project: Project) :
         items += Item.Sep
         items += Item.OpenSettings
 
-        return object : BaseListPopupStep<Item>("AI Commit", items) {
+        return object : BaseListPopupStep<Item>("Auto Commit", items) {
             override fun getTextFor(value: Item): String = when (value) {
                 is Item.SelectProvider -> "${value.provider.name} · ${value.provider.model.ifBlank { "(无模型)" }}"
                 Item.OpenSettings -> "打开设置…"

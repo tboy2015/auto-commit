@@ -1,4 +1,4 @@
-# AI Commit — IntelliJ IDEA Plugin
+# Auto Commit — IntelliJ IDEA Plugin
 
 在 IDEA 的 Commit 对话框里用 AI 一键生成 commit message。
 
@@ -36,11 +36,11 @@ cd auto-commit
 
 ### 方式 B：JetBrains Marketplace（待上架）
 
-`Settings → Plugins → Marketplace`，搜 "AI Commit"。
+`Settings → Plugins → Marketplace`，搜 "Auto Commit"。
 
 ## 使用
 
-1. **配置 Provider**：`Settings → Tools → AI Commit`
+1. **配置 Provider**：`Settings → Tools → Auto Commit`
    - 选预设 tab（DeepSeek / Ollama / …）或点 `+ Custom`
    - 填 API Key，点"验证"测试连接，点"刷新模型"拉模型列表 → 勾选要启用的
    - 在表格上方"当前模型"下拉里选默认模型

@@ -33,7 +33,7 @@ class SettingsConfigurable : Configurable {
 
     private val rootPanel: JPanel = JPanel(BorderLayout())
 
-    override fun getDisplayName() = "AI Commit"
+    override fun getDisplayName() = "Auto Commit"
 
     override fun createComponent(): JComponent {
         rebuildTabs()

@@ -1,18 +1,36 @@
 <idea-plugin>
-    <id>io.aicommit</id>
-    <name>AI Commit</name>
+    <id>io.github.tboy2015.autocommit</id>
+    <name>Auto Commit</name>
     <vendor email="" url="https://github.com/tboy2015/auto-commit">aicommit</vendor>
     <description><![CDATA[
-        <h3>AI Commit — 在 IDEA Commit 对话框里用 AI 生成 commit message</h3>
+        <h3>Auto Commit — generate Git commit messages with AI inside IntelliJ IDEA</h3>
+
+        <p>AI Commit adds a one-click button to the IDEA Commit tool window
+        that streams an AI-generated commit message into the message field,
+        based on your staged changes. Works with any OpenAI-compatible API,
+        including local models via Ollama or LM Studio.</p>
+
+        <h4>Features</h4>
         <ul>
-          <li>支持 OpenAI / Anthropic Claude / DeepSeek / Kimi / 智谱 GLM / 通义千问 / SiliconFlow / OpenRouter / Ollama / LM Studio，以及任意 OpenAI 兼容端点</li>
-          <li>多规范模板：Conventional Commits / Gitmoji / Simple / Custom</li>
-          <li>多语言：中文 / English / 日本語 / 한국어 / 自定义</li>
-          <li>流式输出直接填入 message 输入框，可随时停止</li>
-          <li>右键 ⚡ 选择上下文模式：仅 staged diff / + 文件路径 / + 最近 commit 历史</li>
-          <li>大 diff 自动截断、API Key 存系统 Keychain、不上报任何遥测</li>
-          <li>快捷键：⌘⇧G（macOS） / Ctrl+Shift+G（Win/Linux）</li>
+          <li>Built-in presets for OpenAI, Anthropic Claude, DeepSeek, Kimi (Moonshot),
+              Zhipu GLM, Qwen DashScope, SiliconFlow, OpenRouter, Ollama, LM Studio,
+              plus any custom OpenAI-compatible endpoint.</li>
+          <li>Conventional Commits / Gitmoji / Simple / fully custom system prompts.</li>
+          <li>Multilingual output: English, Chinese, Japanese, Korean, or custom.</li>
+          <li>Streaming output directly into the commit message — stop anytime.</li>
+          <li>Right-click the ⚡ button to choose generation context:
+              staged diff only, + file paths, or + recent commit history.</li>
+          <li>Auto-truncates large diffs, redacts secrets (.env, API keys),
+              stores credentials in the system keychain (PasswordSafe).</li>
+          <li>Shortcut: <code>⌘⇧G</code> (macOS) / <code>Ctrl+Shift+G</code> (Win/Linux).</li>
+          <li>Status-bar widget for quick provider / model switching.</li>
+          <li>No telemetry. Source on GitHub under MIT license.</li>
         </ul>
+
+        <h4>中文简介</h4>
+        <p>在 IDEA Commit 对话框里点 ⚡ 即可调用 AI 一键生成 commit message。
+        内置主流国内外模型预设，支持本地 Ollama / LM Studio；多 commit 规范与多语言；
+        大 diff 自动截断与脱敏；API Key 仅保存在系统 Keychain。</p>
     ]]></description>
     <change-notes><![CDATA[
         <h4>0.1.0</h4>
@@ -27,14 +45,14 @@
     <resource-bundle>messages.AICommitBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <notificationGroup id="AI Commit" displayType="BALLOON"/>
+        <notificationGroup id="Auto Commit" displayType="BALLOON"/>
         <applicationService serviceImplementation="io.aicommit.settings.AppSettings"/>
         <projectService serviceImplementation="io.aicommit.diff.DiffCollector"/>
         <projectService serviceImplementation="io.aicommit.service.CommitMsgService"/>
         <applicationConfigurable parentId="tools"
                                  instance="io.aicommit.settings.SettingsConfigurable"
                                  id="io.aicommit.settings"
-                                 displayName="AI Commit"/>
+                                 displayName="Auto Commit"/>
         <statusBarWidgetFactory id="AICommit.ProviderWidget"
                                 implementation="io.aicommit.ui.ProviderStatusBarFactory"
                                 order="last"/>
