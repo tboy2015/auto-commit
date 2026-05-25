@@ -10,6 +10,7 @@ import java.util.UUID
 class AppSettings : PersistentStateComponent<AppSettings.State> {
     data class State(
         var providers: MutableList<Provider> = mutableListOf(),
+        var apiKeys: MutableMap<String, String> = mutableMapOf(),
         var activeProviderId: String? = null,
         var convention: String = "conventional",
         var language: String = "中文",
@@ -26,7 +27,13 @@ class AppSettings : PersistentStateComponent<AppSettings.State> {
 
     private var state = State()
     override fun getState(): State = state
-    override fun loadState(s: State) { XmlSerializerUtil.copyBean(s, state) }
+    override fun loadState(s: State) {
+        XmlSerializerUtil.copyBean(s, state)
+        state.providers.removeAll { it.id.isBlank() || it.presetId.isBlank() }
+        state.activeProviderId = state.activeProviderId?.takeIf { id ->
+            state.providers.any { it.id == id }
+        }
+    }
 
     fun activeProvider(): Provider? =
         state.activeProviderId?.let { id -> state.providers.firstOrNull { it.id == id } }
@@ -65,8 +72,17 @@ class AppSettings : PersistentStateComponent<AppSettings.State> {
         if (idx >= 0) state.providers[idx] = provider else state.providers.add(provider)
     }
 
+    fun setApiKey(providerId: String, key: String?) {
+        val normalized = key?.takeIf { it.isNotBlank() }
+        if (normalized == null) state.apiKeys.remove(providerId) else state.apiKeys[providerId] = normalized
+    }
+
+    fun getApiKey(providerId: String): String? =
+        state.apiKeys[providerId]?.takeIf { it.isNotBlank() }
+
     fun remove(providerId: String) {
         state.providers.removeAll { it.id == providerId }
+        state.apiKeys.remove(providerId)
         if (state.activeProviderId == providerId) state.activeProviderId = null
         SecretStore.clear(providerId)
     }

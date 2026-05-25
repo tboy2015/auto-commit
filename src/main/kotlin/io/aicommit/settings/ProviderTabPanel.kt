@@ -9,6 +9,7 @@ import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBPasswordField
+import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
@@ -17,17 +18,13 @@ import io.aicommit.llm.OpenAICompatibleClient
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.RowFilter
 import javax.swing.table.AbstractTableModel
 import javax.swing.table.TableRowSorter
-import javax.swing.RowFilter
 
-/**
- * One tab worth of editor UI for a single Provider.
- * Mutates the Provider in-place via [snapshot]/[apply].
- */
 class ProviderTabPanel(
     private var provider: Provider,
-    private val onActiveToggle: (Provider) -> Unit,   // called when this tab is set active
+    private val onActiveToggle: (Provider) -> Unit,
 ) {
     private val activeCheck = JBCheckBox("设为当前服务")
     private val baseUrl = JBTextField(provider.baseUrl)
@@ -38,7 +35,7 @@ class ProviderTabPanel(
         isEditable = true
         selectedItem = provider.model.ifBlank { provider.enabledModels.firstOrNull() ?: "" }
     }
-    private val searchField = JBTextField().apply { emptyText.text = "搜索模型…" }
+    private val searchField = JBTextField().apply { emptyText.text = "搜索模型..." }
     private val refreshBtn = JButton("刷新模型")
     private val modelsTableModel = ModelsTableModel(provider)
     private val modelsTable = JBTable(modelsTableModel).apply {
@@ -63,7 +60,6 @@ class ProviderTabPanel(
             override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = applyFilter()
         })
         modelsTableModel.addTableModelListener {
-            // Sync enabled-models into combo so dropdown shows enabled set
             val enabled = modelsTableModel.enabledModels()
             val current = modelCombo.selectedItem as? String
             modelCombo.model = DefaultComboBoxModel(enabled.toTypedArray())
@@ -105,8 +101,7 @@ class ProviderTabPanel(
                 cell(refreshBtn)
             }
             row {
-                cell(com.intellij.ui.components.JBScrollPane(modelsTable))
-                    .align(AlignX.FILL).resizableColumn()
+                cell(JBScrollPane(modelsTable)).align(AlignX.FILL).resizableColumn()
             }.resizableRow()
         }
         group("生成参数") {
@@ -116,7 +111,6 @@ class ProviderTabPanel(
         }
     }
 
-    /** Build a Provider from current UI state (does NOT persist the API key). */
     fun snapshot(): Provider = provider.copy(
         baseUrl = baseUrl.text.trim(),
         model = (modelCombo.selectedItem as? String).orEmpty().trim(),
@@ -126,7 +120,6 @@ class ProviderTabPanel(
         timeoutSec = timeout.text.toIntOrNull() ?: 60,
     )
 
-    /** Persist UI state into [provider] and secret store. Returns the updated Provider. */
     fun apply(): Provider {
         provider = snapshot()
         SecretStore.set(provider.id, String(apiKey.password).takeIf { it.isNotBlank() })
@@ -135,20 +128,26 @@ class ProviderTabPanel(
 
     private fun verify() {
         val snap = snapshot()
-        if (snap.baseUrl.isBlank()) { Messages.showWarningDialog("Base URL 为空", "Auto Commit"); return }
-        verifyBtn.isEnabled = false; verifyBtn.text = "验证中…"
-        val key = String(apiKey.password).takeIf { it.isNotBlank() }
+        if (snap.baseUrl.isBlank()) {
+            Messages.showWarningDialog("Base URL 为空", "Auto Commit")
+            return
+        }
+        verifyBtn.isEnabled = false
+        verifyBtn.text = "验证中..."
+        val key = String(apiKey.password).takeIf { it.isNotBlank() } ?: SecretStore.get(provider.id)
         runBackground("验证 ${snap.baseUrl}") {
             runCatching { OpenAICompatibleClient(snap, key).listModels() }
                 .onSuccess { models ->
                     ApplicationManager.getApplication().invokeLater({
-                        verifyBtn.isEnabled = true; verifyBtn.text = "验证"
+                        verifyBtn.isEnabled = true
+                        verifyBtn.text = "验证"
                         Messages.showInfoMessage("连接成功，发现 ${models.size} 个模型。", "Auto Commit")
                     }, ModalityState.any())
                 }
                 .onFailure { e ->
                     ApplicationManager.getApplication().invokeLater({
-                        verifyBtn.isEnabled = true; verifyBtn.text = "验证"
+                        verifyBtn.isEnabled = true
+                        verifyBtn.text = "验证"
                         Messages.showErrorDialog("验证失败：\n${e.message?.take(500)}", "Auto Commit")
                     }, ModalityState.any())
                 }
@@ -157,20 +156,26 @@ class ProviderTabPanel(
 
     private fun fetchModels() {
         val snap = snapshot()
-        if (snap.baseUrl.isBlank()) { Messages.showWarningDialog("Base URL 为空", "Auto Commit"); return }
-        refreshBtn.isEnabled = false; refreshBtn.text = "刷新中…"
-        val key = String(apiKey.password).takeIf { it.isNotBlank() }
+        if (snap.baseUrl.isBlank()) {
+            Messages.showWarningDialog("Base URL 为空", "Auto Commit")
+            return
+        }
+        refreshBtn.isEnabled = false
+        refreshBtn.text = "刷新中..."
+        val key = String(apiKey.password).takeIf { it.isNotBlank() } ?: SecretStore.get(provider.id)
         runBackground("拉取模型列表") {
             runCatching { OpenAICompatibleClient(snap, key).listModels() }
                 .onSuccess { models ->
                     ApplicationManager.getApplication().invokeLater({
-                        refreshBtn.isEnabled = true; refreshBtn.text = "刷新模型"
+                        refreshBtn.isEnabled = true
+                        refreshBtn.text = "刷新模型"
                         modelsTableModel.replaceAll(models)
                     }, ModalityState.any())
                 }
                 .onFailure { e ->
                     ApplicationManager.getApplication().invokeLater({
-                        refreshBtn.isEnabled = true; refreshBtn.text = "刷新模型"
+                        refreshBtn.isEnabled = true
+                        refreshBtn.text = "刷新模型"
                         Messages.showErrorDialog("拉取失败：\n${e.message?.take(500)}", "Auto Commit")
                     }, ModalityState.any())
                 }
@@ -189,7 +194,6 @@ private class ModelsTableModel(initial: Provider) : AbstractTableModel() {
 
     private val rows: MutableList<Row> = run {
         val all = initial.enabledModels.toMutableList()
-        // If model is set but not in list, include it
         if (initial.model.isNotBlank() && !all.contains(initial.model)) all.add(0, initial.model)
         all.map { Row(true, it) }.toMutableList()
     }
@@ -197,7 +201,10 @@ private class ModelsTableModel(initial: Provider) : AbstractTableModel() {
     override fun getRowCount(): Int = rows.size
     override fun getColumnCount(): Int = 3
     override fun getColumnName(c: Int): String = when (c) {
-        0 -> "启用"; 1 -> "模型"; 2 -> "模型 ID"; else -> ""
+        0 -> "启用"
+        1 -> "模型"
+        2 -> "模型 ID"
+        else -> ""
     }
     override fun getColumnClass(c: Int): Class<*> = if (c == 0) java.lang.Boolean::class.java else String::class.java
     override fun isCellEditable(r: Int, c: Int): Boolean = c == 0
@@ -207,7 +214,10 @@ private class ModelsTableModel(initial: Provider) : AbstractTableModel() {
         else -> ""
     }
     override fun setValueAt(v: Any?, r: Int, c: Int) {
-        if (c == 0 && v is Boolean) { rows[r].enabled = v; fireTableRowsUpdated(r, r) }
+        if (c == 0 && v is Boolean) {
+            rows[r].enabled = v
+            fireTableRowsUpdated(r, r)
+        }
     }
 
     fun replaceAll(allModelIds: List<String>) {

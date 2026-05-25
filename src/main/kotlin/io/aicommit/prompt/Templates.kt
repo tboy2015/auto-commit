@@ -1,13 +1,21 @@
 package io.aicommit.prompt
 
 object Templates {
-    data class Convention(val id: String, val displayName: String, val systemPrompt: String)
+    data class Convention(
+        val id: String,
+        val displayName: String,
+        val description: String,
+        val systemPrompt: String,
+    )
 
     val conventions: List<Convention> = listOf(
-        Convention("conventional", "Conventional Commits",
-            """You write high-quality git commit messages following Conventional Commits 1.0.0.
+        Convention(
+            id = "conventional",
+            displayName = "标准提交（Conventional Commits）",
+            description = "生成 feat/fix/test/build 等规范化提交信息，适合团队协作和自动化 changelog。",
+            systemPrompt = """You write high-quality git commit messages following Conventional Commits 1.0.0.
             |
-            |OUTPUT FORMAT — this is critical:
+            |OUTPUT FORMAT - this is critical:
             |Line 1: `<type>(<scope>): <subject>`
             |Line 2: (empty line)
             |Line 3+: bullet list, ONE bullet per line, each line ending with an actual newline character.
@@ -21,32 +29,44 @@ object Templates {
             |- Describe intent, not line counts.
             |
             |EXAMPLE (note the real line breaks):
-            |feat(southbound): 新增三方系统执行日志能力
+            |feat(settings): persist API keys locally
             |
-            |- southbound-server: 引入执行日志表与 DO，重构 `AbstractThirdSystemClient`
-            |- southbound-server: 新增 `SouthboundApiRequest/Result/Exception` 用于结构化调用
-            |- sql: 新增 `biz_southbound_execution_log` 表与达梦升级脚本
-            |- web-ui: 增加调用日志查询页面
+            |- settings: add local API key storage to AppSettings
+            |- settings: read saved keys when opening provider configuration
+            |- test: cover API key persistence across settings reloads
             |
-            |Output ONLY the commit message. No markdown fences. No explanations before or after.""".trimMargin()),
-        Convention("conventional-emoji", "Conventional + Gitmoji",
-            """Same rules as Conventional Commits, but prefix the subject with the matching gitmoji
+            |Output ONLY the commit message. No markdown fences. No explanations before or after.""".trimMargin(),
+        ),
+        Convention(
+            id = "conventional-emoji",
+            displayName = "标准提交 + Gitmoji",
+            description = "在 Conventional Commits 前加入合适的 Gitmoji，适合偏轻松、视觉识别强的提交风格。",
+            systemPrompt = """Same rules as Conventional Commits, but prefix the subject with the matching gitmoji
             |(✨ feat, 🐛 fix, 📝 docs, ♻️ refactor, ⚡ perf, ✅ test, 🔧 chore, 👷 ci, 🎨 style).
-            |Body grouped by module/file as bullets. Output ONLY the commit message.""".trimMargin()),
-        Convention("gitmoji", "Gitmoji only",
-            """Prefix the subject line with the gitmoji that best matches the change.
+            |Body grouped by module/file as bullets. Output ONLY the commit message.""".trimMargin(),
+        ),
+        Convention(
+            id = "gitmoji",
+            displayName = "Gitmoji 简洁风格",
+            description = "只强调 emoji 和简短主题，适合个人项目或偏轻量的提交信息。",
+            systemPrompt = """Prefix the subject line with the gitmoji that best matches the change.
             |Single-line subject preferred; if there are several distinct changes add a body of bullets grouped by module.
-            |Output ONLY the message.""".trimMargin()),
-        Convention("simple", "Simple",
-            """Write a clear, concise git commit message:
+            |Output ONLY the message.""".trimMargin(),
+        ),
+        Convention(
+            id = "simple",
+            displayName = "简洁说明",
+            description = "生成自然语言摘要，不强制 feat/fix 格式，适合临时提交或非规范化仓库。",
+            systemPrompt = """Write a clear, concise git commit message:
             |- One imperative subject line (<= 72 chars) summarizing the overall change.
             |- If multiple meaningful changes exist, add a blank line then a bullet list grouped by module/file.
-            |Output ONLY the message.""".trimMargin()),
+            |Output ONLY the message.""".trimMargin(),
+        ),
     )
 
     const val DEFAULT_USER_TEMPLATE: String = """Write a git commit message in {{language}} that follows the rules above.
 
-Identify the affected modules from the file paths and group your bullets accordingly. Order modules by significance of change. Skip noise (formatting-only edits, generated files).
+Use the staged diff as the primary source of truth. If file paths or recent commit history are provided, use them only as supporting context.
 
 Recent commit style for reference:
 {{recent_commits}}
@@ -61,4 +81,7 @@ Diff{{#truncated}} (truncated){{/truncated}}:
     fun systemFor(id: String, custom: String?): String =
         if (id == "custom" && !custom.isNullOrBlank()) custom
         else (conventions.firstOrNull { it.id == id } ?: conventions[0]).systemPrompt
+
+    fun conventionFor(id: String): Convention =
+        conventions.firstOrNull { it.id == id } ?: conventions[0]
 }

@@ -35,16 +35,10 @@ class ProviderStatusBarWidget(private val project: Project) :
     private var statusBar: StatusBar? = null
 
     override fun ID(): String = "AICommit.ProviderWidget"
-
     override fun install(statusBar: StatusBar) { this.statusBar = statusBar }
-
     override fun dispose() { statusBar = null }
-
     override fun copy(): StatusBarWidget = ProviderStatusBarWidget(project)
-
     override fun getPresentation(): StatusBarWidget.WidgetPresentation = this
-
-    // ---- MultipleTextValuesPresentation ----
 
     override fun getSelectedValue(): String {
         val p = AppSettings.get().activeProvider()
@@ -52,11 +46,8 @@ class ProviderStatusBarWidget(private val project: Project) :
         else "AI: ${p.name} · ${p.model.ifBlank { "(无模型)" }}"
     }
 
-    override fun getTooltipText(): String =
-        "点击切换 AI Provider / 模型"
-
+    override fun getTooltipText(): String = "点击切换 AI Provider / 模型"
     override fun getIcon(): Icon = AllIcons.Actions.Lightning
-
     override fun getPopup(): ListPopup? =
         JBPopupFactory.getInstance().createListPopup(buildStep())
 
@@ -65,7 +56,6 @@ class ProviderStatusBarWidget(private val project: Project) :
         val providers = settings.state.providers.filter { it.baseUrl.isNotBlank() || it.isCustom }
         val active = settings.activeProvider()
 
-        // 第一层：provider 列表
         val items = mutableListOf<Item>()
         for (p in providers) items += Item.SelectProvider(p, isActive = p.id == active?.id)
         items += Item.Sep
@@ -74,7 +64,7 @@ class ProviderStatusBarWidget(private val project: Project) :
         return object : BaseListPopupStep<Item>("Auto Commit", items) {
             override fun getTextFor(value: Item): String = when (value) {
                 is Item.SelectProvider -> "${value.provider.name} · ${value.provider.model.ifBlank { "(无模型)" }}"
-                Item.OpenSettings -> "打开设置…"
+                Item.OpenSettings -> "打开设置..."
                 Item.Sep -> "—"
             }
             override fun getIconFor(value: Item): Icon? = when (value) {
@@ -85,33 +75,9 @@ class ProviderStatusBarWidget(private val project: Project) :
             override fun isSelectable(value: Item): Boolean = value !is Item.Sep
             override fun isSpeedSearchEnabled() = true
 
-            override fun onChosen(selectedValue: Item, finalChoice: Boolean): PopupStep<*>? {
-                return when (selectedValue) {
-                    is Item.SelectProvider -> {
-                        // 第二层：在该 provider 的"启用模型"里选一个作为 active model
-                        val models = selectedValue.provider.enabledModels.ifEmpty {
-                            listOfNotNull(selectedValue.provider.model.takeIf { it.isNotBlank() })
-                        }
-                        if (models.isEmpty()) {
-                            settings.setActive(selectedValue.provider.id)
-                            refresh()
-                            return FINAL_CHOICE
-                        }
-                        return object : BaseListPopupStep<String>(
-                            "${selectedValue.provider.name} · 选择模型", models
-                        ) {
-                            override fun getIconFor(value: String): Icon? =
-                                if (value == selectedValue.provider.model) AllIcons.Actions.Checked else null
-
-                            override fun onChosen(model: String, finalChoice: Boolean): PopupStep<*>? {
-                                val updated = selectedValue.provider.copy(model = model)
-                                settings.update(updated)
-                                settings.setActive(updated.id)
-                                refresh()
-                                return FINAL_CHOICE
-                            }
-                        }
-                    }
+            override fun onChosen(selectedValue: Item, finalChoice: Boolean): PopupStep<*>? =
+                when (selectedValue) {
+                    is Item.SelectProvider -> providerModelStep(selectedValue.provider)
                     Item.OpenSettings -> {
                         ShowSettingsUtil.getInstance()
                             .showSettingsDialog(project, SettingsConfigurable::class.java)
@@ -119,6 +85,30 @@ class ProviderStatusBarWidget(private val project: Project) :
                     }
                     Item.Sep -> FINAL_CHOICE
                 }
+        }
+    }
+
+    private fun providerModelStep(provider: Provider): PopupStep<*> {
+        val settings = AppSettings.get()
+        val models = provider.enabledModels.ifEmpty {
+            listOfNotNull(provider.model.takeIf { it.isNotBlank() })
+        }
+        if (models.isEmpty()) {
+            settings.setActive(provider.id)
+            refresh()
+            return PopupStep.FINAL_CHOICE
+        }
+
+        return object : BaseListPopupStep<String>("${provider.name} · 选择模型", models) {
+            override fun getIconFor(value: String): Icon? =
+                if (value == provider.model) AllIcons.Actions.Checked else null
+
+            override fun onChosen(model: String, finalChoice: Boolean): PopupStep<*>? {
+                val updated = provider.copy(model = model)
+                settings.update(updated)
+                settings.setActive(updated.id)
+                refresh()
+                return FINAL_CHOICE
             }
         }
     }

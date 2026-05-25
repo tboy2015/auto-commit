@@ -2,8 +2,10 @@ package io.aicommit.settings
 
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
+import com.intellij.ui.SimpleListCellRenderer
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.AlignY
 import com.intellij.ui.dsl.builder.panel
@@ -19,9 +21,11 @@ import javax.swing.JComponent
  */
 class PromptEditorPanel(private val settings: AppSettings) {
 
-    private val conventionPicker = ComboBox(Templates.conventions.map { it.id }.toTypedArray()).apply {
-        selectedItem = settings.state.convention
+    private val conventionPicker = ComboBox(Templates.conventions.toTypedArray()).apply {
+        renderer = SimpleListCellRenderer.create("") { it?.displayName.orEmpty() }
+        selectedItem = Templates.conventionFor(settings.state.convention)
     }
+    private val conventionDescription = JBLabel(Templates.conventionFor(settings.state.convention).description)
 
     private val systemArea = JBTextArea(
         settings.state.customSystemPrompt
@@ -54,6 +58,7 @@ class PromptEditorPanel(private val settings: AppSettings) {
         // 切换规范时，若 system 区是默认值就跟着更新
         conventionPicker.addActionListener {
             val newDefault = Templates.systemFor(currentConvention(), null)
+            conventionDescription.text = currentConventionMeta().description
             // 只在用户没自定义的情况下更新
             if (settings.state.customSystemPrompt == null) {
                 systemArea.text = newDefault
@@ -62,11 +67,15 @@ class PromptEditorPanel(private val settings: AppSettings) {
     }
 
     private fun currentConvention(): String =
-        (conventionPicker.selectedItem as? String) ?: "conventional"
+        currentConventionMeta().id
+
+    private fun currentConventionMeta(): Templates.Convention =
+        (conventionPicker.selectedItem as? Templates.Convention) ?: Templates.conventions[0]
 
     val component: JComponent = panel {
         group("System Prompt") {
-            row("规范:") { cell(conventionPicker) }
+            row("提示词规范:") { cell(conventionPicker) }
+            row { cell(conventionDescription) }
             row { cell(JBScrollPane(systemArea)).align(AlignX.FILL).resizableColumn() }
             row { cell(resetSystemBtn) }
         }
@@ -124,7 +133,7 @@ class PromptEditorPanel(private val settings: AppSettings) {
             customSystemPrompt = systemArea.text.ifBlank { null },
             customUserTemplate = userArea.text.ifBlank { null },
         )
-        val mode = settings.state.diffMode
+        val mode = DiffMode.STAGED_ONLY
         try {
             val msgs = PromptBuilder.build(sample, ephemeralState, userTemplate = null, mode = mode)
             previewArea.text = buildString {

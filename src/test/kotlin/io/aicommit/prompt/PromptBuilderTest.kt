@@ -66,4 +66,12 @@ class PromptBuilderTest {
         val msgs = PromptBuilder.build(p, s, userTemplate = null)
         assertTrue(msgs[1].content.contains("(truncated)"))
     }
+
+    @Test
+    fun `conventions expose localized labels and descriptions`() {
+        val conventional = Templates.conventionFor("conventional")
+
+        assertEquals("标准提交（Conventional Commits）", conventional.displayName)
+        assertTrue(conventional.description.contains("规范化提交信息"))
+    }
 }

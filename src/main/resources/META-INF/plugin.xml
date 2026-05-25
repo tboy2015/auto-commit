@@ -3,39 +3,58 @@
     <name>Auto Commit</name>
     <vendor email="" url="https://github.com/tboy2015/auto-commit">aicommit</vendor>
     <description><![CDATA[
-        <h3>Auto Commit — generate Git commit messages with AI inside IntelliJ IDEA</h3>
+        <p>
+          <b>Auto Commit</b> generates Git commit messages with AI directly inside IntelliJ IDEA.
+          It reads your staged changes and streams a clear, ready-to-use commit message into the commit message field.
+        </p>
 
-        <p>AI Commit adds a one-click button to the IDEA Commit tool window
-        that streams an AI-generated commit message into the message field,
-        based on your staged changes. Works with any OpenAI-compatible API,
-        including local models via Ollama or LM Studio.</p>
+        <p>
+          It supports OpenAI-compatible APIs and includes presets for OpenAI, Anthropic Claude, DeepSeek,
+          Kimi, Zhipu GLM, Qwen DashScope, SiliconFlow, OpenRouter, Ollama, LM Studio, and custom endpoints.
+          API keys are saved in the plugin's local settings so you do not need to re-enter them every time you open the IDE.
+        </p>
 
-        <h4>Features</h4>
         <ul>
-          <li>Built-in presets for OpenAI, Anthropic Claude, DeepSeek, Kimi (Moonshot),
-              Zhipu GLM, Qwen DashScope, SiliconFlow, OpenRouter, Ollama, LM Studio,
-              plus any custom OpenAI-compatible endpoint.</li>
-          <li>Conventional Commits / Gitmoji / Simple / fully custom system prompts.</li>
-          <li>Multilingual output: English, Chinese, Japanese, Korean, or custom.</li>
-          <li>Streaming output directly into the commit message — stop anytime.</li>
-          <li>Right-click the ⚡ button to choose generation context:
-              staged diff only, + file paths, or + recent commit history.</li>
-          <li>Auto-truncates large diffs, redacts secrets (.env, API keys),
-              stores credentials in the system keychain (PasswordSafe).</li>
-          <li>Shortcut: <code>⌘⇧G</code> (macOS) / <code>Ctrl+Shift+G</code> (Win/Linux).</li>
-          <li>Status-bar widget for quick provider / model switching.</li>
-          <li>No telemetry. Source on GitHub under MIT license.</li>
+          <li>One-click AI commit message generation from the IDEA Commit tool window.</li>
+          <li>Right-click the action button to choose a prompt convention and generate immediately.</li>
+          <li>Supports Conventional Commits, Gitmoji, simple style, and custom prompts.</li>
+          <li>Works with cloud providers and local models through Ollama or LM Studio.</li>
+          <li>Streams generated text directly into the commit message field and can be stopped anytime.</li>
+          <li>Supports multilingual output, including English, Chinese, Japanese, Korean, and custom languages.</li>
+          <li>Handles large diffs with automatic truncation and optional secret redaction.</li>
+          <li>Includes a status bar widget for quick provider and model switching.</li>
         </ul>
 
-        <h4>中文简介</h4>
-        <p>在 IDEA Commit 对话框里点 ⚡ 即可调用 AI 一键生成 commit message。
-        内置主流国内外模型预设，支持本地 Ollama / LM Studio；多 commit 规范与多语言；
-        大 diff 自动截断与脱敏；API Key 仅保存在系统 Keychain。</p>
+        <p><b>中文简介</b></p>
+
+        <p>
+          <b>Auto Commit</b> 是一个 IntelliJ IDEA 插件，可以根据暂存区代码变更，使用 AI 自动生成 Git commit message，
+          并将结果流式写入提交信息输入框。
+        </p>
+
+        <p>
+          插件支持 OpenAI 兼容接口，内置 OpenAI、Anthropic Claude、DeepSeek、Kimi、智谱 GLM、
+          通义千问 DashScope、SiliconFlow、OpenRouter、Ollama、LM Studio 等预设，也支持自定义模型服务。
+          API Key 会保存到插件本地配置中，重新打开 IDE 后无需重复填写。
+        </p>
+
+        <ul>
+          <li>在 IDEA Commit 窗口中一键生成提交信息。</li>
+          <li>右键生成按钮可选择提示词规范，并立即按该规范生成。</li>
+          <li>支持 Conventional Commits、Gitmoji、简洁模式和自定义提示词。</li>
+          <li>支持云端模型，也支持 Ollama / LM Studio 本地模型。</li>
+          <li>生成内容会流式写入 commit message，可随时停止。</li>
+          <li>支持中文、英文、日文、韩文以及自定义输出语言。</li>
+          <li>自动截断大 diff，并可对敏感信息进行脱敏。</li>
+          <li>提供状态栏入口，方便快速切换服务商和模型。</li>
+        </ul>
     ]]></description>
     <change-notes><![CDATA[
-        <h4>0.1.0</h4>
+        <h4>0.1.3</h4>
         <ul>
-          <li>首次发布。详见 <a href="https://github.com/tboy2015/auto-commit/blob/main/CHANGELOG.md">CHANGELOG</a></li>
+          <li>Polished settings UI copy and prompt convention selection.</li>
+          <li>Added local API key persistence and cleaner final commit message formatting.</li>
+          <li>Updated plugin icons and Marketplace description.</li>
         </ul>
     ]]></change-notes>
 
@@ -63,7 +82,7 @@
                 class="io.aicommit.action.GenerateAction"
                 icon="AllIcons.Actions.Lightning"
                 text="AI 生成提交信息"
-                description="基于已勾选变更，调用 AI 生成 commit message">
+                description="根据已勾选变更调用 AI 生成 commit message">
             <add-to-group group-id="Vcs.MessageActionGroup" anchor="first"/>
             <keyboard-shortcut keymap="$default" first-keystroke="meta shift G"/>
             <keyboard-shortcut keymap="$default" first-keystroke="control shift G" remove="true"/>
