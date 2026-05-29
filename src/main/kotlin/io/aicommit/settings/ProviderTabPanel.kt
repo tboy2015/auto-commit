@@ -1,5 +1,6 @@
 package io.aicommit.settings
 
+import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.progress.ProgressIndicator
@@ -30,6 +31,7 @@ class ProviderTabPanel(
     private val baseUrl = JBTextField(provider.baseUrl)
     private val verifyBtn = JButton("验证")
     private val apiKey = JBPasswordField().apply { text = SecretStore.get(provider.id).orEmpty() }
+    private val apiKeyUrl = ProviderPresets.byId(provider.presetId)?.apiKeyUrl
 
     private val modelCombo = ComboBox(DefaultComboBoxModel(provider.enabledModels.toTypedArray())).apply {
         isEditable = true
@@ -44,6 +46,14 @@ class ProviderTabPanel(
         columnModel.getColumn(0).preferredWidth = 60
     }
 
+    private val enableProxy = com.intellij.ui.components.JBCheckBox("使用独立代理（覆盖 IDE 全局）").apply {
+        isSelected = provider.proxyUrl.isNotBlank()
+    }
+    private val proxyPort = JBTextField(extractPortFromUrl(provider.proxyUrl)).apply {
+        emptyText.text = "7890"
+        isEnabled = enableProxy.isSelected
+        columns = 6
+    }
     private val temperature = JBTextField(provider.temperature.toString())
     private val maxTokens = JBTextField(provider.maxTokens.toString())
     private val timeout = JBTextField(provider.timeoutSec.toString())
@@ -54,6 +64,10 @@ class ProviderTabPanel(
         }
         verifyBtn.addActionListener { verify() }
         refreshBtn.addActionListener { fetchModels() }
+        enableProxy.addActionListener {
+            proxyPort.isEnabled = enableProxy.isSelected
+            if (enableProxy.isSelected && proxyPort.text.isBlank()) proxyPort.text = "7890"
+        }
         searchField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
             override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = applyFilter()
             override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = applyFilter()
@@ -92,6 +106,20 @@ class ProviderTabPanel(
             }
             row("API Key:") {
                 cell(apiKey).align(AlignX.FILL).resizableColumn()
+                if (apiKeyUrl != null) {
+                    link("获取 API Key") { BrowserUtil.browse(apiKeyUrl) }
+                }
+            }
+            row("代理:") {
+                cell(enableProxy)
+                label("端口:")
+                cell(proxyPort)
+            }
+            row {
+                comment(
+                    "默认跟随 IDE 全局代理（<b>Settings → Appearance &amp; Behavior → System Settings → HTTP Proxy</b>）。<br/>" +
+                        "勾选后此 provider 改走 <code>http://127.0.0.1:&lt;port&gt;</code>（Clash / v2ray 等），不再跟随全局。"
+                )
             }
         }
         group("模型选择") {
@@ -118,7 +146,15 @@ class ProviderTabPanel(
         temperature = temperature.text.toDoubleOrNull() ?: 0.8,
         maxTokens = maxTokens.text.toIntOrNull() ?: 512,
         timeoutSec = timeout.text.toIntOrNull() ?: 60,
+        proxyUrl = buildProxyUrl(),
     )
+
+    private fun buildProxyUrl(): String {
+        if (!enableProxy.isSelected) return ""
+        val port = proxyPort.text.trim().toIntOrNull() ?: return ""
+        if (port !in 1..65535) return ""
+        return "http://127.0.0.1:$port"
+    }
 
     fun apply(): Provider {
         provider = snapshot()
@@ -187,6 +223,14 @@ class ProviderTabPanel(
             override fun run(indicator: ProgressIndicator) { block() }
         })
     }
+}
+
+private fun extractPortFromUrl(url: String): String {
+    if (url.isBlank()) return ""
+    return runCatching {
+        val u = java.net.URI(url.trim())
+        if (u.port > 0) u.port.toString() else ""
+    }.getOrDefault("")
 }
 
 private class ModelsTableModel(initial: Provider) : AbstractTableModel() {

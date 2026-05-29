@@ -47,7 +47,7 @@ class OpenAICompatibleClient(
         currentCoroutineContext().job.invokeOnCompletion { call.cancel() }
         val response = try { call.execute() } catch (e: IOException) {
             if (call.isCanceled()) throw kotlinx.coroutines.CancellationException("cancelled")
-            throw LLMException.Network("network error: ${e.message}", e)
+            throw LLMException.Network(describeNetworkError(provider, e), e)
         }
         response.use { resp ->
             if (!resp.isSuccessful) {
@@ -117,7 +117,7 @@ class OpenAICompatibleClient(
         provider.extraHeaders.forEach { (k, v) -> builder.header(k, v) }
 
         val response = try { httpFactory().newCall(builder.build()).execute() }
-        catch (e: IOException) { throw LLMException.Network("network error: ${e.message}", e) }
+        catch (e: IOException) { throw LLMException.Network(describeNetworkError(provider, e), e) }
         response.use { resp ->
             val body = resp.body?.string().orEmpty()
             if (!resp.isSuccessful) {
@@ -135,10 +135,68 @@ class OpenAICompatibleClient(
 
     companion object {
         private val log = Logger.getInstance(OpenAICompatibleClient::class.java)
-        fun defaultHttp(p: Provider): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(p.timeoutSec.toLong(), TimeUnit.SECONDS)
-            .writeTimeout(p.timeoutSec.toLong(), TimeUnit.SECONDS)
-            .build()
+
+        /** 把底层 IOException 包装成用户能看懂的提示，附带代理上下文。 */
+        internal fun describeNetworkError(p: Provider, e: Throwable): String {
+            val proxyDesc = when {
+                p.proxyUrl.isNotBlank() -> "通过独立代理 ${p.proxyUrl}"
+                else -> ideGlobalProxy(p.baseUrl)?.let { "通过 IDE 全局代理 $it" } ?: "未走代理"
+            }
+            val hint = when (e) {
+                is javax.net.ssl.SSLHandshakeException,
+                is javax.net.ssl.SSLException ->
+                    "TLS 握手失败。可能原因：① 代理端口/服务未启动 ② 代理不支持 HTTPS CONNECT ③ 目标域名被代理拦截 ④ 系统时间不同步"
+                is java.net.ConnectException ->
+                    "无法建立 TCP 连接。检查端口号是否正确、代理服务是否在运行（macOS: lsof -i :端口）"
+                is java.net.SocketTimeoutException ->
+                    "超时。代理可能未转发到目标，或目标 API 响应慢；可调大 Timeout"
+                is java.net.UnknownHostException ->
+                    "DNS 解析失败：${e.message}。检查域名拼写或代理是否提供 DNS"
+                else -> e.message.orEmpty()
+            }
+            return buildString {
+                append("network error: ${e.javaClass.simpleName}")
+                if (e.message != null) append(" — ${e.message}")
+                append("\n→ $proxyDesc → ${p.baseUrl}")
+                if (hint.isNotBlank()) append("\n💡 $hint")
+            }
+        }
+
+        fun defaultHttp(p: Provider): OkHttpClient {
+            val builder = OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(p.timeoutSec.toLong(), TimeUnit.SECONDS)
+                .writeTimeout(p.timeoutSec.toLong(), TimeUnit.SECONDS)
+            resolveProxy(p)?.let {
+                log.info("using proxy=$it for ${p.baseUrl}")
+                builder.proxy(it)
+            }
+            return builder.build()
+        }
+
+        /** 默认跟随 IDE 全局；provider.proxyUrl 非空时为"独立代理"，覆盖全局。 */
+        private fun resolveProxy(p: Provider): java.net.Proxy? {
+            if (p.proxyUrl.isNotBlank()) {
+                return parseExplicitProxy(p.proxyUrl) ?: run {
+                    log.warn("invalid proxyUrl='${p.proxyUrl}', falling back to IDE global")
+                    ideGlobalProxy(p.baseUrl)
+                }
+            }
+            return ideGlobalProxy(p.baseUrl)
+        }
+
+        private fun parseExplicitProxy(raw: String): java.net.Proxy? = runCatching {
+            val u = java.net.URI(raw.trim())
+            val host = u.host ?: return@runCatching null
+            val port = if (u.port > 0) u.port else 80
+            val scheme = u.scheme?.lowercase()
+            if (scheme != "http" && scheme != "https") return@runCatching null
+            java.net.Proxy(java.net.Proxy.Type.HTTP, java.net.InetSocketAddress(host, port))
+        }.getOrNull()
+
+        private fun ideGlobalProxy(targetUrl: String): java.net.Proxy? = runCatching {
+            val selected = java.net.ProxySelector.getDefault()?.select(java.net.URI(targetUrl)).orEmpty()
+            selected.firstOrNull { it.type() != java.net.Proxy.Type.DIRECT }
+        }.getOrNull()
     }
 }

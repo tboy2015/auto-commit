@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.4] - 2026-05-29
+
+### Added
+- 在 API Key 输入框旁添加“获取 API Key”链接，直达各 Provider 的密钥页面。
+- 支持为单个 Provider 配置独立代理端口，并默认跟随 IDE 全局代理。
+
+### Improved
+- 网络异常提示现在会包含代理路径和更明确的排查建议。
+- AI 生成的 commit message 会在流式输出完成后自动规整 header、bullet 和空行。
+
 ## [0.1.0] - 2026-05-22
 
 ### Added

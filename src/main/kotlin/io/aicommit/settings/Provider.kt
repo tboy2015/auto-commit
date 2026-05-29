@@ -14,6 +14,8 @@ data class Provider(
     var maxTokens: Int = 512,
     var timeoutSec: Int = 60,
     var extraHeaders: Map<String, String> = emptyMap(),
+    /** 显式代理，留空 = 跟随 IDEA 全局 HTTP Proxy。格式：`http://host:port` 或 `https://host:port`。 */
+    var proxyUrl: String = "",
 ) {
     val isCustom: Boolean get() = presetId == "custom"
 }
