@@ -13,6 +13,7 @@ import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.StatusBarWidgetFactory
 import com.intellij.util.Consumer
 import io.aicommit.settings.AppSettings
+import io.aicommit.settings.ModelCatalog
 import io.aicommit.settings.Provider
 import io.aicommit.settings.SettingsConfigurable
 import java.awt.event.MouseEvent
@@ -90,9 +91,7 @@ class ProviderStatusBarWidget(private val project: Project) :
 
     private fun providerModelStep(provider: Provider): PopupStep<*> {
         val settings = AppSettings.get()
-        val models = provider.enabledModels.ifEmpty {
-            listOfNotNull(provider.model.takeIf { it.isNotBlank() })
-        }
+        val models = ModelCatalog.modelsForUi(provider)
         if (models.isEmpty()) {
             settings.setActive(provider.id)
             refresh()

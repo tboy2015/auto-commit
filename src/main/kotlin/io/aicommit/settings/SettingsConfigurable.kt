@@ -129,16 +129,29 @@ class SettingsConfigurable : Configurable {
     }
 
     private fun addTab(prov: Provider) {
-        val panel = ProviderTabPanel(
+        lateinit var panel: ProviderTabPanel
+        panel = ProviderTabPanel(
             provider = prov,
             onActiveToggle = { snap ->
                 settings.update(snap)
                 settings.setActive(snap.id)
                 for (p in tabPanels) if (p.providerId != snap.id) p.setActiveInPlace(false)
             },
+            onStatusChanged = { snap, key ->
+                refreshProviderTabStatus(panel, snap, key)
+            },
         ).also { it.providerId = prov.id }
         tabPanels.add(panel)
         tabs.addTab(prov.name, panel.component)
+        refreshProviderTabStatus(panel, panel.statusProviderSnapshot(), panel.currentApiKeyForStatus())
+    }
+
+    private fun refreshProviderTabStatus(panel: ProviderTabPanel, provider: Provider, key: String?) {
+        val idx = tabPanels.indexOf(panel)
+        if (idx !in 0 until tabs.tabCount) return
+        val status = providerStatus(provider, key)
+        tabs.setIconAt(idx, StatusDotIcon(status.kind.color))
+        tabs.setToolTipTextAt(idx, "${provider.name}: ${status.text}")
     }
 
     override fun isModified(): Boolean = true

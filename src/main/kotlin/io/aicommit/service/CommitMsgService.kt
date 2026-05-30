@@ -1,22 +1,31 @@
 package io.aicommit.service
 
+import com.intellij.ide.BrowserUtil
 import com.intellij.ide.ActivityTracker
+import com.intellij.notification.Notification
+import com.intellij.notification.NotificationAction
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.command.CommandProcessor
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vcs.changes.Change
 import com.intellij.openapi.vcs.ui.CommitMessage
 import io.aicommit.diff.DiffCollector
 import io.aicommit.diff.DiffMode
 import io.aicommit.llm.LLMException
+import io.aicommit.llm.LLMErrorMessages
 import io.aicommit.llm.OpenAICompatibleClient
 import io.aicommit.prompt.CommitMessageFormatter
 import io.aicommit.prompt.PromptBuilder
 import io.aicommit.settings.AppSettings
+import io.aicommit.settings.ModelCatalog
+import io.aicommit.settings.Provider
+import io.aicommit.settings.ProviderPresets
 import io.aicommit.settings.SecretStore
+import io.aicommit.settings.SettingsConfigurable
 import io.aicommit.ui.Notifications
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -114,19 +123,19 @@ class CommitMsgService(private val project: Project) {
                 }
             } catch (e: LLMException.Auth) {
                 log.warn("auth failed", e)
-                clearPlaceholderAnd { Notifications.error(project, "认证失败：请检查 API Key。") }
+                clearPlaceholderAnd { notifyFailure(e, isError = true) }
             } catch (e: LLMException.RateLimited) {
                 log.warn("rate limited", e)
-                clearPlaceholderAnd { Notifications.warn(project, "触发限流，请稍后重试。") }
+                clearPlaceholderAnd { notifyFailure(e, isError = false) }
             } catch (e: LLMException.ContextTooLong) {
                 log.warn("context too long", e)
-                clearPlaceholderAnd { Notifications.warn(project, "diff 仍然过长，建议拆分 commit。") }
+                clearPlaceholderAnd { notifyFailure(e, isError = false) }
             } catch (e: LLMException.Network) {
                 log.warn("network error", e)
-                clearPlaceholderAnd { Notifications.error(project, "网络错误：${e.message}") }
+                clearPlaceholderAnd { notifyFailure(e, isError = true) }
             } catch (e: LLMException.BadResponse) {
                 log.warn("bad response", e)
-                clearPlaceholderAnd { Notifications.error(project, "模型返回异常：${e.message?.take(200)}") }
+                clearPlaceholderAnd { notifyFailure(e, isError = true) }
             } catch (e: Throwable) {
                 log.error("unexpected error during generation", e)
                 clearPlaceholderAnd { Notifications.error(project, "未预期错误：${e.javaClass.simpleName}: ${e.message}") }
@@ -140,6 +149,88 @@ class CommitMsgService(private val project: Project) {
         withContext(Dispatchers.EDT + NonCancellable) {
             then()
         }
+    }
+
+    private fun notifyFailure(error: LLMException, isError: Boolean) {
+        val actions = failureActions(error)
+        val message = LLMErrorMessages.userMessage(error)
+        if (isError) Notifications.error(project, message, actions)
+        else Notifications.warn(project, message, actions)
+    }
+
+    private fun failureActions(error: LLMException): List<NotificationAction> {
+        val settings = AppSettings.get()
+        val provider = settings.activeProvider()
+        val actions = mutableListOf<NotificationAction>()
+        actions += notificationAction("打开设置") {
+            ShowSettingsUtil.getInstance().showSettingsDialog(project, SettingsConfigurable::class.java)
+        }
+        if (error is LLMException.BadResponse) {
+            actions += notificationAction("刷新模型") { refreshActiveProviderModels() }
+            provider?.let { p ->
+                ProviderPresets.byId(p.presetId)?.defaultModel
+                    ?.takeIf { it.isNotBlank() && it != p.model }
+                    ?.let { recommended ->
+                        actions += notificationAction("切换到推荐模型") {
+                            val enabled = (p.enabledModels + recommended).distinct()
+                            settings.update(p.copy(model = recommended, enabledModels = enabled))
+                            settings.setActive(p.id)
+                        }
+                    }
+            }
+        }
+        provider?.let { p ->
+            ProviderPresets.byId(p.presetId)?.apiKeyUrl?.let { url ->
+                actions += notificationAction("获取 API Key") { BrowserUtil.browse(url) }
+            }
+        }
+        return actions
+    }
+
+    private fun notificationAction(text: String, block: () -> Unit): NotificationAction =
+        object : NotificationAction(text) {
+            override fun actionPerformed(e: com.intellij.openapi.actionSystem.AnActionEvent, notification: Notification) {
+                notification.expire()
+                block()
+            }
+        }
+
+    private fun refreshActiveProviderModels() {
+        val settings = AppSettings.get()
+        val provider = settings.activeProvider() ?: return
+        runBackground("刷新 ${provider.name} 模型列表") {
+            val key = SecretStore.get(provider.id)
+            runCatching { OpenAICompatibleClient(provider, key).listModels() }
+                .onSuccess { models ->
+                    val updated = provider.withRefreshedModels(models)
+                    settings.update(updated)
+                    settings.setActive(updated.id)
+                    ActivityTracker.getInstance().inc()
+                    Notifications.info(project, "模型列表已刷新，当前模型：${updated.model.ifBlank { "(未选择)" }}")
+                }
+                .onFailure { e ->
+                    Notifications.error(project, "刷新模型失败：${LLMErrorMessages.userMessage(e)}")
+                }
+        }
+    }
+
+    private fun Provider.withRefreshedModels(models: List<String>): Provider {
+        val selected = ModelCatalog.chooseBestModel(this, models)
+        val enabled = enabledModels.filter { models.contains(it) }.toMutableSet()
+        if (selected.isNotBlank()) enabled.add(selected)
+        return copy(
+            model = selected.ifBlank { model },
+            enabledModels = enabled.toList(),
+            cachedModels = models,
+            cachedModelsAt = System.currentTimeMillis(),
+        )
+    }
+
+    private fun runBackground(title: String, block: () -> Unit) {
+        com.intellij.openapi.progress.ProgressManager.getInstance().run(object :
+            com.intellij.openapi.progress.Task.Backgroundable(project, title, true) {
+            override fun run(indicator: com.intellij.openapi.progress.ProgressIndicator) { block() }
+        })
     }
 
     private fun appendMessage(ui: CommitMessage, chunk: String) {

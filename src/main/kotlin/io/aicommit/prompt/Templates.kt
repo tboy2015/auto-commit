@@ -10,6 +10,19 @@ object Templates {
 
     val conventions: List<Convention> = listOf(
         Convention(
+            id = "minimal-zh",
+            displayName = "极简中文",
+            description = "生成一行简短中文提交信息，适合个人项目或快速提交。",
+            systemPrompt = """你只输出一条极简中文 Git commit message。
+            |
+            |规则：
+            |- 只输出一行，不要正文，不要列表，不要解释。
+            |- 尽量控制在 30 个中文字符以内。
+            |- 用动宾结构概括整体改动，例如：优化设置页模型选择。
+            |- 不要使用 markdown、引号或代码块。
+            |""".trimMargin(),
+        ),
+        Convention(
             id = "conventional",
             displayName = "标准提交（Conventional Commits）",
             description = "生成 feat/fix/test/build 等规范化提交信息，适合团队协作和自动化 changelog。",
@@ -54,6 +67,21 @@ object Templates {
             |Output ONLY the message.""".trimMargin(),
         ),
         Convention(
+            id = "oss-en",
+            displayName = "开源项目英文风格",
+            description = "生成清晰克制的英文提交信息，适合开源项目、PR 和多人协作。",
+            systemPrompt = """Write a polished English commit message suitable for an open-source project.
+            |
+            |Rules:
+            |- Use one concise imperative subject line, <= 72 characters.
+            |- Prefer plain English over internal jargon.
+            |- If the diff contains multiple meaningful changes, add a blank line and 2-4 bullets.
+            |- Mention user-visible behavior and important implementation areas, not line counts.
+            |- Do not use emojis unless the existing recent commits strongly suggest that style.
+            |- Output ONLY the commit message. No markdown fences or explanations.
+            |""".trimMargin(),
+        ),
+        Convention(
             id = "simple",
             displayName = "简洁说明",
             description = "生成自然语言摘要，不强制 feat/fix 格式，适合临时提交或非规范化仓库。",
@@ -61,6 +89,18 @@ object Templates {
             |- One imperative subject line (<= 72 chars) summarizing the overall change.
             |- If multiple meaningful changes exist, add a blank line then a bullet list grouped by module/file.
             |Output ONLY the message.""".trimMargin(),
+        ),
+        Convention(
+            id = "custom",
+            displayName = "团队自定义风格",
+            description = "使用下方 System Prompt 自定义团队提交规范，适合固定 scope、Issue ID 或内部格式。",
+            systemPrompt = """Write a git commit message that follows the team's custom convention.
+            |
+            |Use the diff as the source of truth. Keep the message concise, consistent, and ready to paste.
+            |If your team requires a prefix, scope, issue ID, language, or body format, describe it here.
+            |
+            |Output ONLY the commit message. No markdown fences or explanations.
+            |""".trimMargin(),
         ),
     )
 

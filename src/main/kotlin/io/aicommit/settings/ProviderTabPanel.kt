@@ -9,33 +9,39 @@ import com.intellij.openapi.progress.Task
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextField
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.table.JBTable
+import io.aicommit.llm.LLMErrorMessages
 import io.aicommit.llm.OpenAICompatibleClient
 import javax.swing.DefaultComboBoxModel
 import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.RowFilter
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 import javax.swing.table.AbstractTableModel
 import javax.swing.table.TableRowSorter
 
 class ProviderTabPanel(
     private var provider: Provider,
     private val onActiveToggle: (Provider) -> Unit,
+    private val onStatusChanged: (Provider, String?) -> Unit = { _, _ -> },
 ) {
     private val activeCheck = JBCheckBox("设为当前服务")
     private val baseUrl = JBTextField(provider.baseUrl)
     private val verifyBtn = JButton("验证")
     private val apiKey = JBPasswordField().apply { text = SecretStore.get(provider.id).orEmpty() }
     private val apiKeyUrl = ProviderPresets.byId(provider.presetId)?.apiKeyUrl
+    private val apiKeyStatus = JBLabel()
 
-    private val modelCombo = ComboBox(DefaultComboBoxModel(provider.enabledModels.toTypedArray())).apply {
+    private val modelCombo = ComboBox(DefaultComboBoxModel(ModelCatalog.modelsForUi(provider).toTypedArray())).apply {
         isEditable = true
-        selectedItem = provider.model.ifBlank { provider.enabledModels.firstOrNull() ?: "" }
+        selectedItem = provider.model.ifBlank { ModelCatalog.modelsForUi(provider).firstOrNull() ?: "" }
     }
     private val searchField = JBTextField().apply { emptyText.text = "搜索模型..." }
     private val refreshBtn = JButton("刷新模型")
@@ -44,6 +50,7 @@ class ProviderTabPanel(
         rowSorter = TableRowSorter(modelsTableModel)
         columnModel.getColumn(0).maxWidth = 60
         columnModel.getColumn(0).preferredWidth = 60
+        columnModel.getColumn(3).preferredWidth = 180
     }
 
     private val enableProxy = com.intellij.ui.components.JBCheckBox("使用独立代理（覆盖 IDE 全局）").apply {
@@ -68,10 +75,21 @@ class ProviderTabPanel(
             proxyPort.isEnabled = enableProxy.isSelected
             if (enableProxy.isSelected && proxyPort.text.isBlank()) proxyPort.text = "7890"
         }
-        searchField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
-            override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = applyFilter()
-            override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = applyFilter()
-            override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = applyFilter()
+        searchField.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent?) = applyFilter()
+            override fun removeUpdate(e: DocumentEvent?) = applyFilter()
+            override fun changedUpdate(e: DocumentEvent?) = applyFilter()
+        })
+        val statusListener = object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent?) = updateApiKeyStatus()
+            override fun removeUpdate(e: DocumentEvent?) = updateApiKeyStatus()
+            override fun changedUpdate(e: DocumentEvent?) = updateApiKeyStatus()
+        }
+        apiKey.document.addDocumentListener(statusListener)
+        baseUrl.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent?) = updateApiKeyStatus()
+            override fun removeUpdate(e: DocumentEvent?) = updateApiKeyStatus()
+            override fun changedUpdate(e: DocumentEvent?) = updateApiKeyStatus()
         })
         modelsTableModel.addTableModelListener {
             val enabled = modelsTableModel.enabledModels()
@@ -80,6 +98,7 @@ class ProviderTabPanel(
             if (current != null && enabled.contains(current)) modelCombo.selectedItem = current
             else if (enabled.isNotEmpty()) modelCombo.selectedIndex = 0
         }
+        updateApiKeyStatus(notify = false)
     }
 
     private fun applyFilter() {
@@ -109,6 +128,9 @@ class ProviderTabPanel(
                 if (apiKeyUrl != null) {
                     link("获取 API Key") { BrowserUtil.browse(apiKeyUrl) }
                 }
+            }
+            row("状态:") {
+                cell(apiKeyStatus)
             }
             row("代理:") {
                 cell(enableProxy)
@@ -147,6 +169,8 @@ class ProviderTabPanel(
         maxTokens = maxTokens.text.toIntOrNull() ?: 512,
         timeoutSec = timeout.text.toIntOrNull() ?: 60,
         proxyUrl = buildProxyUrl(),
+        cachedModels = provider.cachedModels,
+        cachedModelsAt = provider.cachedModelsAt,
     )
 
     private fun buildProxyUrl(): String {
@@ -162,6 +186,32 @@ class ProviderTabPanel(
         return provider
     }
 
+    private fun updateApiKeyStatus(notify: Boolean = true) {
+        val snap = snapshot()
+        val key = currentApiKey()
+        val status = providerStatus(snap, key)
+        apiKeyStatus.text = status.text
+        apiKeyStatus.toolTipText = status.tooltip
+        if (notify) onStatusChanged(snap, key)
+    }
+
+    private fun currentApiKey(): String? =
+        String(apiKey.password).takeIf { it.isNotBlank() } ?: SecretStore.get(provider.id)
+
+    private fun rememberVerification(snap: Provider, key: String?, error: String?) {
+        provider = snap.copy(
+            lastVerifiedBaseUrl = snap.baseUrl,
+            lastVerifiedApiKeyMarker = apiKeyMarker(key),
+            lastVerifiedAt = System.currentTimeMillis(),
+            lastVerifyError = error.orEmpty(),
+        )
+        updateApiKeyStatus()
+    }
+
+    fun statusProviderSnapshot(): Provider = snapshot()
+
+    fun currentApiKeyForStatus(): String? = currentApiKey()
+
     private fun verify() {
         val snap = snapshot()
         if (snap.baseUrl.isBlank()) {
@@ -170,11 +220,12 @@ class ProviderTabPanel(
         }
         verifyBtn.isEnabled = false
         verifyBtn.text = "验证中..."
-        val key = String(apiKey.password).takeIf { it.isNotBlank() } ?: SecretStore.get(provider.id)
+        val key = currentApiKey()
         runBackground("验证 ${snap.baseUrl}") {
             runCatching { OpenAICompatibleClient(snap, key).listModels() }
                 .onSuccess { models ->
                     ApplicationManager.getApplication().invokeLater({
+                        rememberVerification(snap, key, null)
                         verifyBtn.isEnabled = true
                         verifyBtn.text = "验证"
                         Messages.showInfoMessage("连接成功，发现 ${models.size} 个模型。", "Auto Commit")
@@ -182,9 +233,11 @@ class ProviderTabPanel(
                 }
                 .onFailure { e ->
                     ApplicationManager.getApplication().invokeLater({
+                        val message = LLMErrorMessages.userMessage(e)
+                        rememberVerification(snap, key, message.take(500))
                         verifyBtn.isEnabled = true
                         verifyBtn.text = "验证"
-                        Messages.showErrorDialog("验证失败：\n${e.message?.take(500)}", "Auto Commit")
+                        Messages.showErrorDialog("验证失败：\n${message.take(500)}", "Auto Commit")
                     }, ModalityState.any())
                 }
         }
@@ -198,24 +251,36 @@ class ProviderTabPanel(
         }
         refreshBtn.isEnabled = false
         refreshBtn.text = "刷新中..."
-        val key = String(apiKey.password).takeIf { it.isNotBlank() } ?: SecretStore.get(provider.id)
+        val key = currentApiKey()
         runBackground("拉取模型列表") {
             runCatching { OpenAICompatibleClient(snap, key).listModels() }
                 .onSuccess { models ->
                     ApplicationManager.getApplication().invokeLater({
+                        rememberVerification(snap, key, null)
                         refreshBtn.isEnabled = true
                         refreshBtn.text = "刷新模型"
-                        modelsTableModel.replaceAll(models)
+                        selectModelAfterRefresh(models)
                     }, ModalityState.any())
                 }
                 .onFailure { e ->
                     ApplicationManager.getApplication().invokeLater({
+                        val message = LLMErrorMessages.userMessage(e)
+                        rememberVerification(snap, key, message.take(500))
                         refreshBtn.isEnabled = true
                         refreshBtn.text = "刷新模型"
-                        Messages.showErrorDialog("拉取失败：\n${e.message?.take(500)}", "Auto Commit")
+                        Messages.showErrorDialog("拉取失败：\n${message.take(500)}", "Auto Commit")
                     }, ModalityState.any())
                 }
         }
+    }
+
+    private fun selectModelAfterRefresh(models: List<String>) {
+        provider = snapshot().copy(cachedModels = models, cachedModelsAt = System.currentTimeMillis())
+        val selected = ModelCatalog.chooseBestModel(provider, models)
+        val previouslyEnabled = modelsTableModel.enabledModels().filter { models.contains(it) }.toMutableSet()
+        if (selected.isNotBlank()) previouslyEnabled.add(selected)
+        modelsTableModel.replaceAll(models, previouslyEnabled)
+        if (selected.isNotBlank()) modelCombo.selectedItem = selected
     }
 
     private fun runBackground(title: String, block: () -> Unit) {
@@ -233,21 +298,23 @@ private fun extractPortFromUrl(url: String): String {
     }.getOrDefault("")
 }
 
-private class ModelsTableModel(initial: Provider) : AbstractTableModel() {
+private class ModelsTableModel(private val initial: Provider) : AbstractTableModel() {
     data class Row(var enabled: Boolean, val id: String)
 
     private val rows: MutableList<Row> = run {
-        val all = initial.enabledModels.toMutableList()
+        val all = ModelCatalog.modelsForUi(initial).toMutableList()
         if (initial.model.isNotBlank() && !all.contains(initial.model)) all.add(0, initial.model)
-        all.map { Row(true, it) }.toMutableList()
+        val enabled = initial.enabledModels.toSet()
+        all.map { Row(enabled.isEmpty() || enabled.contains(it), it) }.toMutableList()
     }
 
     override fun getRowCount(): Int = rows.size
-    override fun getColumnCount(): Int = 3
+    override fun getColumnCount(): Int = 4
     override fun getColumnName(c: Int): String = when (c) {
         0 -> "启用"
         1 -> "模型"
         2 -> "模型 ID"
+        3 -> "标签"
         else -> ""
     }
     override fun getColumnClass(c: Int): Class<*> = if (c == 0) java.lang.Boolean::class.java else String::class.java
@@ -255,6 +322,7 @@ private class ModelsTableModel(initial: Provider) : AbstractTableModel() {
     override fun getValueAt(r: Int, c: Int): Any = when (c) {
         0 -> rows[r].enabled
         1, 2 -> rows[r].id
+        3 -> ModelCatalog.tags(initial, rows[r].id).joinToString(" / ")
         else -> ""
     }
     override fun setValueAt(v: Any?, r: Int, c: Int) {
@@ -264,10 +332,9 @@ private class ModelsTableModel(initial: Provider) : AbstractTableModel() {
         }
     }
 
-    fun replaceAll(allModelIds: List<String>) {
-        val previouslyEnabled = rows.filter { it.enabled }.map { it.id }.toSet()
+    fun replaceAll(allModelIds: List<String>, enabledIds: Set<String>) {
         rows.clear()
-        for (id in allModelIds) rows.add(Row(previouslyEnabled.contains(id), id))
+        for (id in allModelIds) rows.add(Row(enabledIds.contains(id), id))
         fireTableDataChanged()
     }
 

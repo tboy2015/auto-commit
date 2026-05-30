@@ -50,6 +50,14 @@
         </ul>
     ]]></description>
     <change-notes><![CDATA[
+        <h4>0.1.5</h4>
+        <ul>
+          <li>Added provider status dots and API key verification memory in settings.</li>
+          <li>Added model tags, model list caching, and automatic model selection after refresh.</li>
+          <li>Added clearer failure recovery actions for settings, model refresh, recommended model switching, and API key access.</li>
+          <li>Updated DeepSeek and Anthropic preset models and added more commit style presets.</li>
+        </ul>
+
         <h4>0.1.3</h4>
         <ul>
           <li>Polished settings UI copy and prompt convention selection.</li>

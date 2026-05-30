@@ -30,6 +30,7 @@ class AppSettings : PersistentStateComponent<AppSettings.State> {
     override fun loadState(s: State) {
         XmlSerializerUtil.copyBean(s, state)
         state.providers.removeAll { it.id.isBlank() || it.presetId.isBlank() }
+        state.providers.replaceAll { normalizeProviderDefaults(it) }
         state.activeProviderId = state.activeProviderId?.takeIf { id ->
             state.providers.any { it.id == id }
         }
@@ -40,7 +41,11 @@ class AppSettings : PersistentStateComponent<AppSettings.State> {
 
     /** Get-or-create the provider for a preset id (one per preset, idempotent). */
     fun getOrCreatePresetProvider(presetId: String): Provider {
-        state.providers.firstOrNull { it.presetId == presetId && !it.isCustom }?.let { return it }
+        state.providers.firstOrNull { it.presetId == presetId && !it.isCustom }?.let {
+            val normalized = normalizeProviderDefaults(it)
+            if (normalized != it) update(normalized)
+            return normalized
+        }
         val preset = ProviderPresets.byId(presetId) ?: ProviderPresets.byId("custom")!!
         val fresh = Provider(
             id = UUID.randomUUID().toString(),
@@ -51,6 +56,29 @@ class AppSettings : PersistentStateComponent<AppSettings.State> {
         )
         state.providers.add(fresh)
         return fresh
+    }
+
+    private fun normalizeProviderDefaults(provider: Provider): Provider {
+        val updatedModel = when {
+            provider.presetId == "deepseek" &&
+                provider.model in setOf("deepseek-chat", "deepseek-reasoner") -> "deepseek-v4-flash"
+            provider.presetId == "anthropic" &&
+                provider.model == "claude-sonnet-4-5" -> "claude-sonnet-4-20250514"
+            else -> provider.model
+        }
+        if (updatedModel == provider.model) return provider
+        val enabled = provider.enabledModels
+            .map { model ->
+                when {
+                    provider.presetId == "deepseek" && model in setOf("deepseek-chat", "deepseek-reasoner") ->
+                        "deepseek-v4-flash"
+                    provider.presetId == "anthropic" && model == "claude-sonnet-4-5" ->
+                        "claude-sonnet-4-20250514"
+                    else -> model
+                }
+            }
+            .distinct()
+        return provider.copy(model = updatedModel, enabledModels = enabled)
     }
 
     fun addCustom(name: String = "Custom"): Provider {

@@ -8,7 +8,7 @@ import kotlin.test.assertNull
 class ProviderTest {
     @Test
     fun `round-trips through json`() {
-        val p = Provider(id = "x", presetId = "deepseek", name = "DeepSeek", baseUrl = "https://api.deepseek.com/v1", model = "deepseek-chat")
+        val p = Provider(id = "x", presetId = "deepseek", name = "DeepSeek", baseUrl = "https://api.deepseek.com/v1", model = "deepseek-v4-flash")
         val json = Json.encodeToString(Provider.serializer(), p)
         val back = Json.decodeFromString(Provider.serializer(), json)
         assertEquals(p, back)
@@ -43,5 +43,36 @@ class ProviderTest {
 
         assertEquals(emptyList(), settings.state.providers)
         assertNull(settings.state.activeProviderId)
+    }
+
+    @Test
+    fun `migrates stale preset model names`() {
+        val settings = AppSettings()
+        val deepseek = Provider(
+            id = "deepseek-provider",
+            presetId = "deepseek",
+            name = "DeepSeek",
+            baseUrl = "https://api.deepseek.com/v1",
+            model = "deepseek-chat",
+            enabledModels = listOf("deepseek-chat", "deepseek-reasoner"),
+        )
+        val anthropic = Provider(
+            id = "anthropic-provider",
+            presetId = "anthropic",
+            name = "Anthropic Claude",
+            baseUrl = "https://api.anthropic.com/v1",
+            model = "claude-sonnet-4-5",
+            enabledModels = listOf("claude-sonnet-4-5"),
+        )
+
+        settings.loadState(AppSettings.State(providers = mutableListOf(deepseek, anthropic)))
+
+        val migratedDeepseek = settings.state.providers.first { it.id == "deepseek-provider" }
+        assertEquals("deepseek-v4-flash", migratedDeepseek.model)
+        assertEquals(listOf("deepseek-v4-flash"), migratedDeepseek.enabledModels)
+
+        val migratedAnthropic = settings.state.providers.first { it.id == "anthropic-provider" }
+        assertEquals("claude-sonnet-4-20250514", migratedAnthropic.model)
+        assertEquals(listOf("claude-sonnet-4-20250514"), migratedAnthropic.enabledModels)
     }
 }
