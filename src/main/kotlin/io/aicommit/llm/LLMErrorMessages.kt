@@ -30,6 +30,8 @@ object LLMErrorMessages {
                 "账户额度不足或余额不可用。请检查服务商控制台的余额/额度后重试。"
             lower.contains("unauthorized") || lower.contains("forbidden") ->
                 "服务端拒绝访问。请检查 API Key 权限、模型权限和 Base URL。"
+            lower.contains("reasoning_content") || message.contains("推理内容") ->
+                "模型没有返回可写入 commit message 的正文，只返回了推理内容。请调大最大输出 token、减少本次 diff 范围；如果服务端开启了 Thinking，请关闭后重试。"
             message.isBlank() ->
                 "模型返回异常。请点击“刷新模型”重新选择可用模型后重试。"
             else ->

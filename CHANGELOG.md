@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.6] - 2026-06-02
+
+### Improved
+- 修正 reasoning-only 流式响应的失败提示，不再误导用户切换到已在使用的 flash 模型。
+- 失败提示现在会建议调大最大输出 token、减少本次 diff 范围，或关闭服务端 Thinking。
+
 ## [0.1.5] - 2026-05-30
 
 ### Added

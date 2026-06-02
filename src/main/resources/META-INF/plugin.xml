@@ -50,6 +50,12 @@
         </ul>
     ]]></description>
     <change-notes><![CDATA[
+        <h4>0.1.6</h4>
+        <ul>
+          <li>Improved the reasoning-only response warning so it no longer recommends switching to a flash model when one may already be selected.</li>
+          <li>Added clearer recovery hints for increasing max output tokens, reducing the diff size, or disabling server-side Thinking.</li>
+        </ul>
+
         <h4>0.1.5</h4>
         <ul>
           <li>Added provider status dots and API key verification memory in settings.</li>

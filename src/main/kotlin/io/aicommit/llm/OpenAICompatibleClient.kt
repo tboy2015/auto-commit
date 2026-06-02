@@ -103,7 +103,7 @@ class OpenAICompatibleClient(
             if (!sawContent && sawReasoning) {
                 log.warn("stream returned only reasoning_content ($reasoningChars chars); model is reasoning-only or never reached content phase.")
                 throw LLMException.BadResponse(
-                    "模型只返回了推理内容（reasoning），没有正文。请尝试切换到该服务的快速/非思考模型，例如 DeepSeek 的 deepseek-v4-flash；如果当前模型支持关闭 Thinking，请在服务端关闭后重试。"
+                    "本次流式响应只有 reasoning_content，没有 content 正文。可能是输出 token 不足、服务端开启了 Thinking，或响应在正文前结束。"
                 )
             }
         }
